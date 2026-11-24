@@ -1,3 +1,0 @@
-beta-token: 8cc31ee7
-line-1
-line-2
