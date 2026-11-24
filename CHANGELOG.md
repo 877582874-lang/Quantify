@@ -3,6 +3,21 @@
 记录规则：每次更动/版本更迭在此追加一条，含日期、阶段、变更内容、验证证据与报告链接。最新在上。
 署名规则（2026-11-24 起）：每条记录末尾标注维护者署名；本文件 2026-11-24 的全部既有条目均为 Muse 所记。
 
+## 2026-11-25
+
+### 记忆库建立（memory/）
+- 按 Cl 指令在本仓库新建跨会话记忆库 `memory/`：README（用途与入库规则）、rules-and-preferences（常设规则）、infrastructure（服务器/密钥指纹/代理）、project-status（平台状态）、codex-remote（远程控制全记录）、claude-code（已卸载留档）、timeline（两日时间线）。此前全部关键事实首次整理入库；今后 Muse 主动维护。—— Muse
+
+### ChatGPT / Codex 远程控制贯通（服务器侧变更，非平台代码变更）
+- ECS 安装 Codex 0.172.0（Node 26.13.1）；为绕 OpenAI 香港地区 403，部署 mihomo 代理（仅监听 127.0.0.1，钉新加坡节点）并注入 SSH 会话代理变量；Cl 本人完成设备码登录（02:16）。
+- /opt/okx-quant 完成 git init 与 Codex 信任/沙箱配置（workspace-write、可写根含项目目录、沙箱出网开启，均经 Cl 批准）。
+- 两轮埋暗号实测通过：项目文件读/改/增/删（03:04）；Git 克隆/改/提交/推送（提交 4b2a045，署名 ChatGPT，03:11 终验）。测试文件与分支已清理（09677b4）。
+- 生图实测：Codex 无原生生图能力，fallback 需 OPENAI_API_KEY，未开通。
+- 细节与教训（PKCS#8 钥格式、pkill 自匹配、沙箱策略冻结等）见 `memory/codex-remote.md`。—— Muse
+
+### Claude Code 安装后卸载
+- 03:23 按 Cl 指令安装 @anthropic-ai/claude-code v2.1.331（未登录）；03:31 Cl 以 Anthropic 封号风险为由决定不用，Muse 随即卸载并复核无残留（释放约 381 MB），量化系统基线无变化。见 `memory/claude-code.md`。—— Muse
+
 ## 2026-11-24
 
 ### 建档（archive init）
