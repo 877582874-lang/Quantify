@@ -1,0 +1,97 @@
+Crypto Quant Research Platform — 服务器基础环境只读审计报告
+审计时间：2026-11-24 19:42 CST
+审计对象：阿里云香港 ECS，公网 IP 47.239.82.63，root@SSH 22
+审计方式：SSH 只读命令实测（未修改任何文件、未重启服务、未安装/卸载软件、未输出任何私钥/密码/API Key/Token）
+
+A. 当前服务器完整配置
+
+- Ubuntu 版本：Ubuntu 22.04.5 LTS，内核 5.15.0-198-generic
+- 主机名：iZj6cdxsi6dmudpx5kbey3Z
+- CPU：2 核
+- 内存：总计 3.5 GiB，已用 484 MiB，可用 2.8 GiB（标称 4G，系统可见 3.5 GiB）
+- Swap：4.0 GiB（/swapfile，已持久化），已用 0 B
+- 磁盘：系统盘 40 GB，已用 8.0 GB，剩余 30 GB，使用率 22%
+- 系统时区：Asia/Shanghai (CST, +0800)，时钟已同步（NTP synchronized: yes）
+- 审计时运行状态：开机约 16 分钟，负载 0.01 / 0.16 / 0.16
+
+
+- Docker 版本：29.10.0
+- Docker Compose 版本：v5.8.0
+- 服务状态：active，开机启动：enabled
+- 运行中容器：0 个（全部容器 0 个）
+- 现有网络：bridge / host / none（均为 Docker 默认网络，无自定义网络）
+- 现有卷：0 个
+- 现有镜像：python:3.12-slim（179 MB）、hello-world:latest（25.9 kB），合计 179.5 MB
+- 日志配置：daemon.json 已设 json-file 轮转，单文件 10m × 3
+
+
+- 系统 Python：3.10.12，系统 pip：22.0.2
+- 项目 Python：3.12.16
+- 虚拟环境：存在，/opt/okx-quant/venv，venv 内 pip 26.3
+- 已安装（venv 内实测导入）：Pandas 3.1.1、NumPy 2.5.5、requests 2.34.2、websockets 17.4
+- 未安装：Polars、FastAPI、CCXT、VectorBT、MLflow（均为实测导入失败，未为检查而安装）
+
+
+- Caddy 版本：v2.11.9
+- 服务状态：active，开机启动：enabled
+- 配置文件：/etc/caddy/Caddyfile（当前为安装默认内容，仅有:80 静态站点块，root 指向 /usr/share/caddy，无反向代理配置）
+- 当前监听：公网 *:80（Caddy）；127.0.0.1:2019（Caddy 管理接口，仅本机）
+- 域名配置：无（Caddyfile 中无任何域名站点）
+- HTTPS 证书：无，证书数量 0，未签发过任何证书，443 当前无服务监听
+- 其他 Web 服务：无 nginx/apache 进程，80 端口仅 Caddy 占用，无冲突
+
+
+- 服务器实际监听端口（ss 实测）：22（sshd，公网）、80（Caddy，公网）、53（systemd-resolve，仅 127.0.0.53）、2019（Caddy，仅 127.0.0.1）
+- 阿里云安全组入站（2026-11-24 19:34 实测验证）：22、80、443 已放行（当时临时监听测试 80/443 均从外网返回 HTTP 200；测试服务已关闭）；8571 当时实测不可达，未放行多余端口
+- UFW：inactive（未启用），当前入站管控依赖阿里云安全组
+- SSH 登录方式（sshd -T 实测生效值）：公钥认证 yes，密码认证 no，PermitRootLogin yes（允许 root 密钥远程登录）
+- 数据库端口公网暴露：无。5432 / 3306 / 6379 / 27017 均无任何进程监听
+- Docker 容器端口暴露：无。当前运行容器 0 个，不存在容器端口映射到公网
+- fail2ban：未安装
+
+
+- /opt 现有内容：okx-quant（本项目，170 MB，含 app / data / logs / backups / venv，.env 为空文件、权限 600）、containerd（容器运行时目录）
+- /srv：空目录，无任何项目
+- /var/lib/docker 磁盘占用：232 KB（Docker 29 镜像实际存放在 containerd 存储，/var/lib/containerd 为 172 MB，与 docker system df 的 179.5 MB 对应）
+- 其他量化项目：本机无其他量化项目（/opt、/srv 内仅本项目；另一台旧 ECS 上的 TXFF 项目不在本机）
+- PostgreSQL：未安装服务端（无 psql/postgres 二进制、无 systemd 单元、dpkg 仅有 libpq5 客户端库 14.24，非数据库服务）；MySQL / Redis 服务端同样未安装
+
+B. 已经完成的基础设施
+1. 操作系统与资源：Ubuntu 22.04.5 LTS、2 核、3.5 GiB 内存、4 GiB Swap（已持久化）、40 GB 盘剩余 30 GB
+2. 时区与时间同步：Asia/Shanghai 且 NTP 已同步，满足交易所 API 签名对时间精度的要求
+3. Docker 运行时：Docker 29.10.0 + Compose v5.8.0，运行中且开机自启，日志轮转已配，hello-world 与 python:3.12-slim 拉取/运行已验证
+4. Python 研究环境雏形：Python 3.12.16 独立 venv，Pandas / NumPy / requests / websockets 已装且可导入
+5. Web 入口：Caddy v2.11.9 运行中且开机自启，安全组 22 / 80 / 443 已放行并实测通过
+6. 项目目录隔离：/opt/okx-quant 独立目录结构（app/data/logs/backups）已建，.env 权限 600
+7. SSH 安全基线：密码登录已禁用，仅密钥登录
+8. OKX 连通性（基础环境验收时实测）：REST 接口 HTTP 200，ping 约 1.4 ms，Docker 容器内可实拉 BTC-USDT-SWAP 行情
+
+C. 缺失的基础设施
+1. 研究/策略库未装：Polars、FastAPI、CCXT、VectorBT、MLflow 均未安装
+2. 数据库未部署：无 PostgreSQL（也无 MySQL / Redis），当前仅能用文件 / SQLite 类方案
+3. HTTPS 未启用：无域名绑定、无证书、443 无监听，Caddy 仍是默认:80 静态配置，无反向代理
+4. 无任何业务容器/服务在运行：无行情采集、无策略引擎、无研究 API、无面板
+5. 主机防火墙未启用：UFW inactive，无 fail2ban，仅靠云安全组一层
+6. 无监控/备份机制：未见监控、告警、定时备份配置（.env 为空，未接入任何 API 凭证，本次审计范围内未发现）
+
+D. 潜在冲突和安全风险
+1. 端口冲突风险低：当前仅 22 / 80 被占用，443 空闲，无其他 Web/DB 服务，部署新系统基本无端口冲突；唯一需注意的是 Caddy 已占用 80，后续面板/API 应通过 Caddy 反代或 Compose 内部端口，不要再单独绑定 80
+2. root 直登风险：PermitRootLogin yes 且 22 对公网开放，虽已禁用密码、仅密钥可登，仍建议后续收紧（如限制来源 IP、加 fail2ban）；本次只报告，不修改
+3. 单层防火墙风险：UFW 未启用，若安全组被误改放行高危端口，主机层无第二道拦截
+4. 资源上限风险：2 核 / 3.5 GiB 对多策略并行 + tick 级采集 + 在机回测偏紧；内存可用 2.8 GiB，Swap 4 GiB 仅能兜底尖峰，不能替代内存；磁盘剩余 30 GB，行情数据长期落库需做轮转/清理规划
+5. 无证书/无域名：若直接以 IP+HTTP 暴露面板，登录凭证与数据为明文传输，正式开放面板前必须先上域名 + HTTPS
+6. 镜像残留：hello-world 与未使用的 python:3.12-slim 镜像占 179.5 MB，无运行容器，属无害残留，非风险项
+
+E. 是否满足部署量化研究系统的条件
+结论：满足“基础部署”条件，不满足“完整研究平台直接上线”条件。
+- 满足项：OS 版本、时区/时间同步、Docker + Compose、Caddy 入口、安全组、项目目录、Python 3.12 venv 与基础数据栈（Pandas/NumPy）均已就绪且经实测，可立即开始部署行情采集与策略研究容器。
+- 不满足项：数据库（PostgreSQL）、CCXT / VectorBT / MLflow / Polars / FastAPI、域名与 HTTPS、监控备份均缺失，需在下一阶段补齐后才构成完整的多策略研究平台。
+- 硬性阻塞项：无。所有缺失项均为加装/配置类工作，不需要更换操作系统、实例规格或重装系统。
+
+F. 下一阶段建议（仅建议，本次未执行任何修改）
+1. 先定部署形态：用 Docker Compose 在 /opt/okx-quant 下编排（采集 / 策略 / API / 数据库同网络内部互通，仅 Caddy 对外），数据库端口不映射公网
+2. 补数据库：PostgreSQL 以容器方式部署，数据卷独立，端口仅绑 127.0.0.1 或 Compose 内网
+3. 补 Python 依赖：在 venv 或镜像中安装 CCXT、Polars、FastAPI；VectorBT / MLflow 按需评估内存占用后再装（2 核 4G 需控制常驻服务数量）
+4. 接 OKX 前：先只接公共行情（无需 API Key）验证采集稳定性；交易类 API Key 由账户持有人创建，仅授读取+交易、禁提币、IP 白名单绑定 47.239.82.63，先模拟盘后实盘
+5. 上面板前：先绑定域名并让 Caddy 自动签发 HTTPS 证书，再开放面板访问；面板加登录认证，不裸奔在 HTTP/IP 上
+6. 安全收紧：为 22 端口加来源限制或 fail2ban，启用定期快照/数据备份，并给行情数据设磁盘配额与日志轮转复核

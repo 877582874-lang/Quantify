@@ -1,0 +1,67 @@
+《Crypto Quant Research Platform — A2 实施报告》
+项目版本：v1.0
+阶段：A2 — 项目骨架与工程规范建设
+执行时间：2026-11-24 19:51–19:53 CST
+服务器：阿里云香港 ECS 47.239.82.63，项目路径 /opt/okx-quant
+执行方式：允许创建文件和目录；未实现任何交易策略，未连接交易账户，未运行真实交易，未提前开发行情采集/策略/回测功能
+
+
+- 基线（施工前实测）：.env size=0、mode=600、mtime=1795520239、owner=root:root；Docker active/enabled、Caddy active/enabled、运行容器 0；venv pip freeze 基线 10 个包
+- 冲突检查：目标 7 个文件（README.md、.gitignore、pyproject.toml、requirements-existing.lock.txt、docs/ 三份）施工前均不存在，无冲突，未触发停手项
+- 备份：/opt/okx-quant/backups/backup-20261124-195134/
+含 inventory-before.txt（施工前文件清单）、env-stat-before.txt（.env 仅 stat，未读内容）、pip-freeze-before.txt（venv 快照）、project-files-before.tar.gz（施工前全部项目文件，不含 venv 与 backups）、BACKUP_NOTES.md
+说明：venv 未做字节级复制，其状态由 pip-freeze-before.txt 完整描述（Python 3.12.16 + 10 个锁定包），可据此重建；施工前项目除 venv 外本为空骨架，故备份包体积小属实情
+
+共新建 33 个目录（项目目录总数由 5 增至 39，含根目录与备份目录，不含 venv 内部）
+app/core、app/exchanges、app/collectors、app/storage、app/data_quality、
+app/strategies、app/strategies/trend、app/strategies/mean_reversion、app/strategies/momentum、app/strategies/arbitrage、app/strategies/volatility、
+app/backtesting、app/risk、app/evaluation、app/api、app/services、
+config、config/exchanges、config/strategies、
+data/raw、data/normalized、data/features、data/historical、
+experiments、experiments/configs、experiments/results、experiments/reports、
+tests、tests/unit、tests/integration、tests/acceptance、
+scripts、docs
+（app、data、logs、backups 为原有目录，本阶段未删除、未移动）
+
+共 7 个（另备份目录内 5 个备份文件，见上）
+1. README.md（3.6K）：项目定位、支持范围、架构原则摘要、目录说明、环境说明、后续路线、安全红线
+2..gitignore（862B）：排除.env（保留!.env.example）、venv/、__pycache__/、.pytest_cache/、数据文件（data/ 及 *.csv/*.parquet/*.db 等）、日志（logs/ 及 *.log）、临时文件、模型文件（*.pkl/*.onnx/*.pt 等）、本地实验产物（experiments/results、reports、mlruns）；配置模板与文档未排除，明确保留版本管理
+3. pyproject.toml（1.2K）：项目名 crypto-quant-research-platform、版本 1.0.0、requires-python >=3.12,<3.13、setuptools 包发现（app*）、pytest 配置（testpaths=tests）、ruff 基础配置；依赖声明与现有环境一致，未触发任何安装
+4. requirements-existing.lock.txt（171B）：由 /opt/okx-quant/venv/bin/pip freeze 在服务器上生成，共 10 个包（见依赖锁定）
+5. docs/ARCHITECTURE.md（4.4K）：五层架构与单向数据流、采集与计算分离、raw 不可覆盖、UTC 存储/展示转北京时间、策略唯一名称+版本、实验元数据、回测费用/滑点/成交限制与样本外、禁未来数据、回测不等于实盘收益、研究与执行隔离
+6. docs/DATA_CONTRACT.md（3.1K）：支持范围（OKX/Binance、现货/USDT 永续、BTC/ETH 优先、1m/5m/15m/1h/4h，后续 trades/orderbook/funding_rate/open_interest/mark_price）、记录必备字段（exchange/symbol/market_type/data_type/interval/ts_utc/ingested_at_utc/source）、OHLCV 字段、raw/normalized/features/historical 分区、质量检查与缺口留痕、未来数据禁令
+7. docs/DEVELOPMENT_RULES.md（3.2K）：阶段审批、依赖管理（禁擅自升级 pandas/numpy、新增依赖先隔离验证）、代码组织、配置与凭证、数据纪律、测试要求、日志与产物、安全红线
+
+
+当前为“规范先行、代码未动”的骨架：分层与数据流已在 ARCHITECTURE.md 中定义（exchanges → collectors → raw → normalized/features → strategies/backtesting/evaluation → api/services），目录已按此落位；app 下无任何业务代码文件，符合 A2 阶段边界。
+
+
+- requirements-existing.lock.txt 与当前 venv 实时 pip freeze 排序后 diff 为空（一致）
+- 与施工前基线 pip-freeze-before.txt diff 为空（环境零变化）
+- 锁定内容：certifi==2026.11.20、charset-normalizer==3.5.3、idna==3.20、numpy==2.5.5、pandas==3.1.1、python-dateutil==4.0.0、requests==2.34.2、tzdata==2026.6、urllib3==2.8.0、websockets==17.4
+- 本阶段未安装、未升级任何软件，pandas/numpy 版本未动
+
+（对应任务书第七节，逐项实测）
+1. 目录结构检查：通过。39 个目录与任务书第三节逐项核对一致
+2. 新建文件检查：通过。7 个文件全部存在且大小如上
+3. pyproject.toml 格式：通过。venv Python tomllib 解析成功，name/version/requires-python/testpaths 读取正确
+4. venv 导入验证：通过。pandas 3.1.1、numpy 2.5.5、requests 2.34.2、websockets 17.4 全部导入正常
+5. lock 与原环境一致：通过（双向 diff 为空，见上）
+6..env 保护：通过。施工后 stat 与基线逐字相同（size=0、mode=600、mtime 未变），未读取、未输出、未覆盖
+7. Docker/Caddy 状态：通过。与基线相同（均 active/enabled，运行容器 0），未修改其任何配置，未重启任何服务
+8. 无安装/升级：通过。pip freeze 前后一致即为证据；本阶段远程操作仅 mkdir、文件上传、pip freeze 只读生成清单
+9. 原有文件保护：通过。app/data/logs/venv/.env 及备份包均完好，无删除、无覆盖
+
+
+- 未删除任何现有文件；未覆盖.env；未修改 venv 与系统 Python；未修改 Docker、Caddy、SSH、防火墙；未重启服务器或任何服务
+- 唯一新增写入：A2 目录、7 个工程文件、1 个备份目录，均在 /opt/okx-quant 范围内
+
+（均为后续阶段内容，非 A2 缺项）
+- 无任何业务代码：采集、清洗、存储、策略、回测、API 均未开发（A2 明令禁止提前开发）
+- 未装新依赖：Polars、FastAPI、CCXT、VectorBT、MLflow、PostgreSQL 均未部署
+- 无 Dockerfile/Compose 编排，无域名/HTTPS 配置，无定时任务与测试代码（tests/ 仅目录）
+
+
+1. A3 建议先做“依赖选型与兼容性验证”：在隔离环境验证 CCXT/Polars/FastAPI/VectorBT/MLflow 与 pandas 3.1.1/numpy 2.5.5 的兼容性，结果落入 pyproject 与锁定文件后再进主环境
+2. 随后做数据层：OKX 公共行情采集（无需交易凭证）→ raw 落盘 → 质量检查，先跑通 BTC/ETH K 线
+3. 存储与回测、策略、API/面板依次分阶段立项、审批、验收，不跳步

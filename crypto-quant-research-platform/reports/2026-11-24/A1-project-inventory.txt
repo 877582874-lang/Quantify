@@ -1,0 +1,100 @@
+《Crypto Quant Research Platform — A1 资产盘点报告》
+盘点时间：2026-11-24 19:47 CST
+盘点对象：阿里云香港 ECS 47.239.82.63，/opt/okx-quant
+执行权限：只读（未修改/删除/移动任何文件，未安装/升级/卸载软件，未启动/停止服务，未修改 Docker/Caddy/SSH 配置，未读取.env 内容，未输出任何密码/Token/API Key/私钥，未连接任何交易账户）
+
+
+目录树（最多 4 层，venv 内部为第三方包目录，仅列至第 2 层）：
+/opt/okx-quant
+├─ app/ 空目录，0 个文件，4.0K
+├─ data/ 空目录，0 个文件，4.0K
+├─ logs/ 空目录，0 个文件，4.0K
+├─ backups/ 空目录，0 个文件，4.0K
+├─ venv/ Python 虚拟环境，项目总占用 170M 几乎全部在此
+│ ├─ bin/ python / pip / websockets 等入口
+│ ├─ include/python3.12/
+│ └─ lib/python3.12/site-packages/ 170M
+└─.env 存在，0 字节，权限 600（仅确认存在性与权限，未读取内容）
+
+文件分类统计（不含 venv 内部）：
+- Python 源文件：0 个（venv 内部第三方包.py 共 2,465 个，非项目代码）
+- 配置文件：仅.env 1 个（0 字节）；无.toml/.yaml/.json/.ini/.cfg/.conf/.md 项目文件
+- Docker 相关文件：0 个（无 Dockerfile、无 compose.yaml/docker-compose.yml、无.dockerignore）
+- 数据库文件：0 个（无.db/.sqlite/.sqlite3）
+- 历史行情数据文件：0 个，0 字节（data/ 为空）
+- 日志文件：0 个（logs/ 为空）
+- 备份文件：0 个（backups/ 为空）
+
+app/ 为空目录，无任何代码文件：
+- 当前架构：无架构，仅有空目录骨架（app/data/logs/backups 分区）
+- 行情采集程序：无
+- Web API：无
+- 策略模块：无
+- 回测程序：无
+- 数据清洗程序：无
+- 定时任务：无与本项目相关的（root 无 crontab，无 okx/quant 的 systemd unit/timer；系统现有 timers 均为 Ubuntu 系统自带，如 logrotate、apt-daily 等）
+- 测试代码：无（无 tests/ 目录，无 test_*.py）
+
+/opt/okx-quant/venv
+- Python 版本：3.12.16（pyvenv.cfg 确认，不含系统 site-packages）
+- pip 版本：26.3
+- 已安装依赖（pip list 全量，共 11 个包）：
+certifi 2026.11.20、charset-normalizer 3.5.3、idna 3.20、numpy 2.5.5、pandas 3.1.1、pip 26.3、python-dateutil 4.0.0、requests 2.34.2、tzdata 2026.6、urllib3 2.8.0、websockets 17.4
+- 依赖冲突检查：pip check 实测输出 “No broken requirements found.”，已装 11 个包之间无版本冲突
+- requirements.txt：无；pyproject.toml：无；setup.py / Pipfile：无（环境不可通过清单文件一键复现）
+- 可复用的行情处理代码：无项目自有代码可复用；仅有 requests + websockets + pandas/numpy 基础库可供新代码调用
+
+
+- Dockerfile：无
+- compose.yaml / docker-compose.yml：无
+- 已配置但未启动的服务：无（docker ps -a 为 0 个容器，不存在已定义未启动的项目服务）
+- 与本项目有关的 Docker 卷：0 个
+- 与本项目有关的 Docker 网络：无（现有仅 Docker 默认 bridge/host/none）
+
+A. 当前项目完整架构
+当前不存在可运行的系统架构。实测状态为“基础设施 + 空项目骨架”：
+- 宿主机层（上一阶段已建成，本次未重复审计细节）：Ubuntu 22.04.5、Docker 29.10.0 + Compose v5.8.0、Caddy v2.11.9、安全组 22/80/443
+- 项目层：/opt/okx-quant 仅有按用途划分的空目录（app 代码区、data 数据区、logs 日志区、backups 备份区）、一个空的.env 占位文件，以及一个装有基础数据栈的 Python 3.12.16 venv
+- 无应用代码、无容器编排、无数据库、无数据沉淀、无调度
+
+B. 已经完成且可以直接复用的功能
+1. 目录骨架：app/data/logs/backups 分区清晰，可直接作为多策略平台的落位结构，无需重建
+2. Python venv：Python 3.12.16 + pandas 3.1.1 + numpy 2.5.5 + requests 2.34.2 + websockets 17.4，pip check 无冲突，可直接承载行情采集与数据处理代码的开发/调试（注：是开发环境资产，不是已实现的功能）
+3..env 占位与权限：文件已建且权限 600，后续填入配置时无需再改权限（当前 0 字节，无任何凭证）
+4. 宿主机基础设施：Docker/Caddy/安全组/时间同步在上一阶段已实测可用，新系统可直接以容器方式部署，无需再动宿主机
+
+C. 需要修复的功能
+严格意义上没有“已实现但损坏”的功能（因为没有项目代码）。以下属于“已建但不完整、正式部署前必须补正”的项：
+1. venv 无依赖清单：没有 requirements.txt/pyproject.toml，当前环境无法复现、无法审计版本锁定，必须在正式部署时补出并锁定版本
+2..env 为空占位：仅是空文件，不能视为已完成配置管理；正式部署需定义配置项规范（本次未读取其内容，其为 0 字节是实测的文件大小）
+3. 目录骨架无任何配套规范：无 README、无.gitignore、无日志轮转/数据保留策略文件，后续需补齐，否则 data/logs 会无序增长
+
+D. 完全缺失的功能
+1. 行情采集（REST/WebSocket 均无代码）
+2. 数据存储与清洗（无数据库、无数据文件、无清洗代码）
+3. 策略模块与多策略管理（无任何策略代码、无信号/仓位/风控模块）
+4. 回测引擎（无回测代码，未装 VectorBT 等回测库）
+5. 研究支撑（未装 Polars、CCXT、MLflow、FastAPI）
+6. Web API 与面板（无 API 代码、Caddy 无反代配置）
+7. 容器化部署（无 Dockerfile、无 Compose 编排、无项目卷/网络）
+8. 调度与运维（无 cron/systemd 定时任务、无测试代码、无监控、无备份产物，backups/ 为空）
+
+E. 潜在依赖冲突
+1. 当前已装集合内部：无冲突（pip check 实测通过）
+2. 前瞻冲突风险（基于版本号的判断，非实测安装结果）：pandas 3.1.1 与 numpy 2.5.5 均为很新的大版本，后续拟装的 VectorBT、CCXT、MLflow 等库在其稳定版中对 pandas/numpy 的版本上限与 API 兼容性未经本机验证，存在需要降级 pandas/numpy 或等待上游适配的可能；正式选型时应先在隔离环境做兼容性验证，再锁定版本，不要直接装进现有 venv 污染基础环境
+3. 可复现性风险：无锁文件时，未来任何一次 pip 安装都可能连带升级 pandas/numpy，破坏现有无冲突状态
+4. 系统 Python 并存：宿主机同时有 Python 3.10.12（系统）与 3.12.16（项目），部署脚本若误用 python3 将落到 3.10 环境，需在部署规范中写死使用 venv/容器内的 3.12
+
+F. 当前项目是否适合扩展成多策略量化研究平台
+结论：适合作为扩展起点，且是干净起点，但本质上是“从零开发”，不是“改造现有系统”。
+- 适合的理由：目录分区合理、Python 3.12 venv 健康无冲突、宿主机 Docker/Caddy/网络/时间同步已就绪、无历史代码与数据包袱、无端口/卷/网络占用冲突
+- 必须认清的事实：可复用资产只有“骨架 + 基础库环境”，业务功能完成度为 0；多策略平台所需的采集、存储、策略、回测、API、调度、容器编排全部需要新建
+- 资源约束（承接上一阶段审计）：2 核 / 3.5 GiB / 盘余 30 GB，扩展时需控制常驻服务数量，多策略并行与在机大回测需做资源规划
+
+G. 建议的改造方案（仅建议，本阶段未执行任何修改）
+1. 先固化环境：在项目根补 requirements 锁定文件（或 pyproject.toml），把当前 11 个已验证包的版本锁死，并为新依赖建独立的兼容性验证步骤
+2. 定容器编排：在 /opt/okx-quant 下新建 Dockerfile 与 compose.yaml，规划 collector（行情采集）/ research-api（FastAPI）/ db（PostgreSQL）等服务，内部网络互通，仅 Caddy 对外，数据库不映射公网端口
+3. 数据层先行：先落行情采集 → 原始数据落盘/入库 → 清洗管线，data/ 按交易所/交易对/周期分目录并设保留策略，验证一周采集稳定性后再谈策略
+4. 策略与回测解耦：策略模块按“一个策略一个目录/配置”组织，回测优先在本地或限时容器中跑，避免与采集抢 2 核 4G 资源
+5. 补齐工程件：tests/、README、日志轮转、backups 定时备份、.env 配置规范（凭证只放.env 且保持 600，绝不进代码与镜像）
+6. 分阶段验收：每一阶段（环境固化 → 采集 → 存储/清洗 → 回测 → 策略 → API/面板）单独验收后再进入下一阶段，延续只读审计 → 方案 → 批准 → 施工的流程

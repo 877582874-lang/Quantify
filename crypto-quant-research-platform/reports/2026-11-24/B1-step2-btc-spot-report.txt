@@ -1,0 +1,71 @@
+《Crypto Quant Research Platform — B1 第二步实施报告》
+步骤：B1 第二步 — OKX BTC-USDT 现货 30 天历史回补与存储
+时间：2026-11-24 20:04–20:12 CST
+服务器：阿里云香港 ECS 47.239.82.63，/opt/okx-quant
+范围：仅 OKX BTC-USDT 现货 × 5 周期（任务书授权范围，未越界）
+
+
+- A2 文件与 B1 第一步两份文档完好；B1 备份（backup-B1-20261124-195912）在位
+- 本步施工前新备份：backups/backup-B1S2-20261124-200434/（含清单、env stat、pip freeze、项目 tar）
+-.env：size=0、mode=600、mtime=1795520239（仅 stat，未读内容）
+- 现有 venv pip freeze md5 = db004966e1b716bd05d03c57bef1d8f1（与基线一致）
+- 磁盘 40G 余 30G；内存可用 2.8G；Docker/Caddy active
+
+
+- 新建 /opt/okx-quant/.venv-data（Python 3.12.16，256MB），现有 venv 未动
+- 安装前候选→安装后验证→锁定 requirements-data.lock.txt：
+duckdb==2.0.1、pyarrow==26.0.1、requests==2.34.2（+certifi/charset-normalizer/idna/urllib3 传递依赖）
+- 兼容性验证（隔离小测）：duckdb 写入/读取 pyarrow 生成的 Parquet、pyarrow 独立回读均通过
+- 未安装 CCXT/FastAPI/VectorBT/MLflow
+
+
+app/exchanges/okx.py — OKX 公开接口适配器（UA、0.35s 自限速、指数退避重试上限 5 次）
+app/collectors/backfill.py — 回补驱动（after 游标倒序分页、窗口过滤、游标断点续传、逐页落 raw 后入库）
+app/storage/state.py — SQLite 五表（jobs/cursors/runs/raw_batches/quality_checks+anomalies/files_catalog）
+app/storage/raw_store.py — raw 不可变批次（.json.gz 临时文件→原子改名 +.manifest.json 含 SHA-256）
+app/storage/normalizer.py — 标准化（按 B1_FIELD_MAPPING 现货映射）+ DuckDB 主键去重 + Parquet 归档五步协议
+app/data_quality/checks.py — 质量检查套件（缺口/重复/OHLC/成交量/未收盘/对齐）
+scripts/run_step2.py — 编排入口（--days/--intervals/--fresh/--skip-archive）
+
+
+5m × 1 天先行全链路：3 次请求、287 条已收盘（288 理论值 − 1 条未收盘，精确吻合）、归档 2 文件、质检全零异常 → 通过后才跑正式回补。正式回补使用 --fresh 重置游标全量重拉，冒烟的 287 条被主键去重替换（见第 6 节重复数），同时实证了去重与重跑不重复累计。
+
+
+周期 | 理论条数 | 实际入库 | 起始 open(UTC) | 最后 open(UTC) | API 请求
+1m | 43,200 | 43,199 | 2026-10-25 12:08 | 2026-11-24 12:06 | 433
+5m | 8,640 | 8,640 | 2026-10-25 12:10 | 2026-11-24 12:05 | 87
+15m | 2,880 | 2,879 | 2026-10-25 12:15 | 2026-11-24 11:45 | 29
+1h | 720 | 719 | 2026-10-25 13:00 | 2026-11-24 11:00 | 8
+4h | 180 | 179 | 2026-10-25 16:00 | 2026-11-24 08:00 | 2
+合计请求 559 次（正式）+ 3 次（冒烟）= 562 次；失败 0 次；重试 0 次。
+说明：1m/15m/1h/4h 比理论值少 1 条，均为抓取时刻正在形成的那根未收盘 K 线（confirm=0），按规范拒绝进入正式集，不是缺失；5m 因其抓取时点恰在收盘后，窗口内 8,640 条全部已收盘。五周期起始 open 均为窗口起点后第一个周期对齐点，互相嵌套一致（跨周期边界检查通过）。
+
+
+- 预期 vs 实际：见第 5 节，差异全部由未收盘过滤解释
+- 重复：正式回补中 5m 有 287 条与冒烟数据重复，被主键 INSERT OR REPLACE 替换，表中重复主键 = 0
+- 缺失：五周期缺口检查 missing = 0（按各自时间轴逐点核对）
+- 异常：quality_anomalies = 0 条；OHLC 非法 0、负成交量 0、时间戳未对齐 0、未收盘混入 0
+- Raw：562 个.json.gz 批次（正式 559 + 冒烟 3），SHA-256 逐个复算与清单比对：562/562 一致，0 不符
+- Raw↔Normalized 数量对账（精确闭合）：raw 中 confirm=1 共 56,194 条 = 正式集 55,616 + 冒烟重叠被替换 287 + 分页边界外（窗口起点之前）保留在 raw 的 291
+- DuckDB 查询：按周期 count/min/max 与样本行实测正常（样本 1m 最新行 close 60315.5、volume_contract=NULL 现货无张数、is_final=true）
+- Parquet 独立读取（仅 pyarrow，不经 DuckDB）：154 个文件、55,616 行，与 DuckDB 总数、SQLite files_catalog 登记数三方一致
+- 归档一致性：每文件写前临时文件校验（行数/min/max）→原子改名→SQLite 单事务登记，154/154 完成
+
+
+raw 4.6MB（562 批次）/ DuckDB 12MB / Parquet 7.8MB（154 文件）/ state.db 368KB /.venv-data 256MB
+磁盘：40G 已用 8.3G、余 29G；回补为 IO 等待主导，未对服务器其他服务产生影响
+
+
+.env stat 与基线逐字相同；现有 venv freeze md5 不变；Docker/Caddy 状态不变、容器 0；未启任何常驻进程（回补进程已退出）；未碰 ETH/永续/Binance；无 API Key、无交易接口调用代码
+
+
+- ETH、OKX 永续、Binance 现货/永续的回补（第三步）
+- 网络故障恢复与进程重启恢复的实测（计划在第三步末尾；本步已具备游标续传与 --fresh 重跑机制，冒烟→正式的重跑已部分实证去重续传）
+- 长期增量常驻采集（第四步，需单独评审常驻方式）
+
+
+- duckdb 2.0.1 / pyarrow 26.0.1 为当前 PyPI 版本，已锁定并通过兼容验证；后续升级需重跑本步质检套件
+- OKX history-candles 分页 after 语义经实测为排他（无分页重叠，1m 433 页零重复可证）
+- 成交量口径按现货映射：volume_native 与 volume_base 均为原始 [5]（基础币量），volume_quote 为 [7]，原始行完整保存在 raw_row 与 raw 批次中，未覆盖未丢弃
+
+结论：第二步验收项全部达成，停步等待审核。批准后进入第三步（扩展其余 7 个组合）。

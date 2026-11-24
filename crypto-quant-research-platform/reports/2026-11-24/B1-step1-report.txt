@@ -1,0 +1,44 @@
+《Crypto Quant Research Platform — B1 第一步报告（检查 / 备份 / 字段映射 / 实现方案）》
+阶段：B1 — 行情采集与存储系统建设
+步骤：第一步 / 共四步（按任务书第十三节分步执行，本步完成后停步待审核）
+时间：2026-11-24 19:59–20:00 CST
+服务器：阿里云香港 ECS 47.239.82.63，/opt/okx-quant
+
+
+- 项目与 A2 文件完好：A2 的 39 个目录、7 个工程文件（README/.gitignore/pyproject/lock/docs 三份）全部在位
+- 基线：.env size=0、mode=600、mtime=1795520239（与 A2 验收值相同，未读内容）；venv pip freeze 的 md5=db004966e1b716bd05d03c57bef1d8f1；Docker/Caddy 均 active、运行容器 0；磁盘 40G 已用 8.0G 余 30G；内存可用 2.8G
+- 公开 API 连通性（服务器侧实测，公开 GET、无凭证）：
+OKX 现货 candles 200、OKX 永续 candles 200、OKX history-candles 200（回补接口可用）
+Binance 现货 klines 200（约 0.106s）、Binance USDT-M 永续 klines 200（约 0.108s）
+结论：四个目标接口从本机全部可达，Binance 未被地域限制挡住
+
+
+/opt/okx-quant/backups/backup-B1-20261124-195912/
+含 inventory-before.txt、env-stat-before.txt（仅 stat）、pip-freeze-before.txt、project-files-before.tar.gz（全部 A2 成果，不含 venv/backups）、BACKUP_NOTES.md
+
+
+1. docs/B1_FIELD_MAPPING.md（7.1K）
+- 四个接口的用途、分页与上限（OKX candles/history-candles 倒序+时间戳游标，Binance klines 正序+startTime/endTime）
+- 标的与周期映射（OKX bar 用 1H/4H 大写、Binance 全小写；Binance 现货/永续同名靠 market_type+接口区分）
+- OKX 与 Binance 逐字段映射到统一标准字段（含 close_time/is_final 的原生/推导区别）
+- 实测坐实的成交量陷阱：OKX 现货 volume_base 取 [5]，永续 [5] 是张数、volume_base 须取 [6] volCcy（样本 2448.62 张 = 24.4862 BTC），套错列位永续成交量放大 100 倍
+- Binance 永续 volume_contract 刻意留空（接口无张数口径，不造数）；OKX trades_count 留空（接口不提供）
+2. docs/B1_IMPLEMENTATION_PLAN.md（11K）
+- 模块划分（exchanges/collectors/storage/data_quality/scripts 落位 A2 目录）
+- 独立环境.venv-data 方案（duckdb+pyarrow 先隔离验证再锁定；现有 venv 不动；不用 CCXT）
+- 存储三层：raw 不可变 JSON.gz 批次（含 SHA-256 清单）→ normalized DuckDB 主键去重（仅 is_final）→ historical Parquet 按日分区、DuckDB hive 查询
+- DuckDB↔Parquet 一致性五步事务（临时文件→校验行数/范围/唯一→原子改名→SQLite 目录登记→标记归档，重启先对账）
+- SQLite 状态库五表设计（jobs/cursors/runs/quality_checks+anomalies/files_catalog），含任务书要求的回补统计口径
+- 30 天回补规模已算清：40 个序列、共 444,960 条；请求约 Binance 450 次 / OKX 4,450 次（history 接口 limit 100），自限速下 OKX 侧约 30–45 分钟，断点续跑
+- 增量设计：每分钟节拍、只入已收盘、指数退避、分所令牌桶限速、心跳与磁盘阈值（剩余 <3GB 拒启）
+- 资源预算：常驻 <600MB、DuckDB memory_limit 512MB；年增量数据约 2–3GB
+- 13 项测试与四步验收门的对应关系；4 项风险/待确认（ctVal 需第二步实测、Binance 张数留空、duckdb 版本锁定、常驻方式第四步单独报批）
+
+
+未建.venv-data、未装任何依赖、未写任何采集/存储代码（app 与 scripts 仍为 0 个代码文件，事后实测确认）、未改.env/venv/Docker/Caddy/SSH/防火墙、未启任何进程
+事后复核：.env stat 与基线逐字相同、pip freeze md5 与基线相同、Docker/Caddy 状态不变
+
+
+1. 字段映射表是否认可（特别是 OKX 永续成交量列位、Binance volume_contract 留空两项取舍）
+2. 实现方案是否认可（单机非容器、DuckDB+Parquet+SQLite 三件套、.venv-data 隔离）
+3. 批准后进入第二步：建.venv-data 验证依赖 → 只做 OKX BTC 现货 30 天回补+存储+质量检查 → 提交小报告再停

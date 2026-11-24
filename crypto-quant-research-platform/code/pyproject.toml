@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "crypto-quant-research-platform"
+version = "1.0.0"
+description = "Cryptocurrency multi-strategy quantitative research platform (research only; no trade execution)"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+license = { text = "Proprietary" }
+authors = [{ name = "Crypto Quant Research Platform" }]
+dependencies = [
+    "pandas==3.1.1",
+    "numpy==2.5.5",
+    "requests==2.34.2",
+    "websockets==17.4",
+]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+
+# Notes (A2):
+# - Python is pinned to the 3.12 series. Do not widen without a compatibility review.
+# - The dependencies above mirror the verified existing venv snapshot in
+#   requirements-existing.lock.txt. They are declarations only: A2 does not
+#   install or upgrade anything, and pandas/numpy must not be upgraded
+#   without the compatibility procedure in docs/DEVELOPMENT_RULES.md.
