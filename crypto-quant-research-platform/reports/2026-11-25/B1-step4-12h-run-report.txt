@@ -1,0 +1,170 @@
+Crypto Quant Research Platform — B1 第四步 12 小时试运行最终报告
+================================================================
+服务器：阿里云香港 ECS 47.239.82.63，项目 /opt/okx-quant
+运行：2026-11-24 21:27:22 CST（13:27:22Z）→ 2026-11-25 09:27:33 CST（01:27:33Z）
+命令：scripts/run_collector.py --duration-seconds 43200（20 序列：BTC/ETH 现货 + BTC/ETH 永续 × 1m/5m/15m/1h/4h）
+收尾核查：2026-11-25 09:50–10:20 CST，只读核查，未做任何修复、未用 --fresh、未重启采集器、未改写历史数据
+报告位置：服务器 /opt/okx-quant/docs/B1_STEP4_12H_RUN_REPORT.txt；仓库 crypto-quant-research-platform/reports/2026-11-25/B1-step4-12h-run-report.txt
+核查脚本与原始结果：~/workspace/goals/crypto-quant-research-platform/hidden_files/b1-step4-verify-main.py、b1-step4-results.json（本地）
+快照对照：/opt/okx-quant/backups/backup-B1-STEP4-20261124-211306/snapshot-before.json（2026-11-24 21:13:06 CST）
+
+A. 启停与进程状态
+------------------
+- collector.log 仅 3 条：started 2026-11-24T13:27:22Z（series 20，deadline 2026-11-25T01:27:22Z，duration 43200s）；
+  stopping 2026-11-25T01:27:23Z（reason=deadline，inserted_total=3712）；stopped 01:27:33Z（summary_written=true，status=ok）。
+- 计划时长 43200s，实际 43210s（多 10s 为到点后收尾写盘）；09:50 复查 ps 无 run_collector 残留进程。
+- 结论：按计划到点自停，无异常、无强杀、无超时运行。
+
+B. 20 序列入库统计（summary.json + DuckDB 独立复核）
+-------------------------------------------------------
+每序列四值均为（anchor → 最后入库 final open / 本轮 fetch 行数 / 本轮入库行数）：
+- 1m ×4 组：anchor 2026-11-24T13:25:00Z → 2026-11-25T01:26:00Z；fetch 10815；入库 721；job 64/69/74/79
+- 5m ×4 组：anchor 13:20:00Z → 01:20:00Z；fetch 2160；入库 144；job 65/70/75/80
+- 15m ×4 组：anchor 13:00:00Z → 01:00:00Z；fetch 720；入库 48；job 66/71/76/81
+- 1h ×4 组：anchor 12:00:00Z → 00:00:00Z；fetch 180；入库 12；job 67/72/77/82
+- 4h ×4 组：anchor 08:00:00Z → 20:00:00Z；fetch 45；入库 3；job 68/73/78/83
+- 全部 20 序列：duplicates=0，failures=0，corrections_seen=0，disabled=false。
+- 合计：入库 3712 行；合计取回 55,680 行（每周期每序列取回最近 15 根：10815+2160+720+180+45=13920/组 ×4 组）。
+- DuckDB 当前每序列总数（与 summary 逐一核对一致）：1m 43999；5m 8799；15m 2932；1h 732；4h 182（四组完全相同）；
+  全库 226,576 行。
+- 总数勾稽（快照 + 冒烟 2 + 本轮 = 现数，以 BTC-USDT 1m 为例）：43199 + 79 + 721 = 43999；ETH-USDT 1m：43200 + 78 + 721 = 43999；
+  5m：8640 + 15 + 144 = 8799；15m（BTC）：2879 + 5 + 48 = 2932；（ETH）：2880 + 4 + 48 = 2932；1h：719 + 1 + 12 = 732；
+  4h：179 + 0 + 3 = 182。ETH-USDT-SWAP 不在快照内，其数为回补 + 冒烟 2 + 本轮（见 K）。
+- 窗口行数复核：DuckDB 中 open 在（anchor, 最后 final] 内的行数与 summary inserted 逐序列相等，20/20 全等；无一行落在最后 final 之后。
+
+C. API 请求统计
+----------------
+- 总计 3712 次请求，全部 GET /api/v5/market/history-candles，HTTP 200 ×3712，failures=0，retries=0，error_kinds={}。
+- 每序列请求数 = 其入库行数（1m 721、5m 144、15m 48、1h 12、4h 3，各 4 组），即每周期每序列 1 次请求、无重试、无补发。
+- 延迟（api_requests.log latency_ms，n=3712）：min 61ms，p50 67ms，p95 76ms，max 353ms，mean 69.9ms。
+
+D. 错误与堆栈
+--------------
+- logs/continuous/errors.log：0 行（空文件，SHA-256 见 J）。
+- ingest.log 7436 条全 status=ok（raw_saved 3712 + duckdb_insert 3712 + archive_pass 12），无非 ok 记录、无堆栈。
+- 本轮零错误。冒烟 1 的 45 条错误见 L（运行前，已修复）。
+
+E. 质量检查
+------------
+- quality.log 699 条，check=pass_complete ×699，status=ok ×699，series_behind 从未非空，quality_anomaly_events=0。
+- SQLite quality_anomalies 表共 4 行，均为运行前产生（created 2026-11-24T12:52:06Z，BTC-USDT-SWAP 5m，open 2026-11-23T11:50/11:55/12:00/12:05Z，
+  “missing final kline”），状态均为 resolved；现对该序列做全量缺口扫描为 0 缺失（见 H），即缺口已填补，但处理过程无文字记录，见 Q-20261125-08。
+- 本轮无新增质量异常。
+
+F. 中断与恢复
+--------------
+- 无中断、无重启、无恢复事件：进程自启动至到点停止连续运行；心跳 698 条全 alive；心跳间隔最大 70.6s，无 >120s 间隔；
+  20 序列全程 active，无一 disabled；api_failures 全程 0。
+- 网络/重启恢复测试仍未做（门控项，见 Q-20261125-06），本次 12 小时未触发相关场景。
+
+G. 心跳与资源
+--------------
+- RSS：131MB（启动）→ 188MB（峰值）→ 183MB（末次），全程 131–188MB。
+- 磁盘剩余：30.92GB（启动）→ 29.58GB（末次），下降 1.34GB。已查明与采集器无关：同一窗口内（2026-11-25 01:03 CST）
+  服务器安装 Codex CLI，npm 缓存新增约 358MB、codex 二进制约 321MB、apt 缓存约 143MB 等，合计约 1.0–1.3GB；
+  采集器自身增长约 55MB（data/ 130M、logs/continuous 4.4M；3,712 个 raw 批次 + 3,712 行 + 12 次归档）。
+  收尾时 df 可用 29.58GB，与心跳末值一致，运行结束后无继续下降。磁盘告警 disk_alarm=false，远高于 3GB 停线。
+- 进程外资源：Docker 0 容器；Caddy 正常。
+
+H. 最终一致性检查（三方比对，只读）
+--------------------------------------
+- DuckDB vs Parquet 独立读取：20/20 序列总数完全相等（1m 43999、5m 8799、15m 2932、1h 732、4h 182 ×4 组；全库 226,576）。
+- DuckDB 窗口行数 vs summary.json：20/20 相等（见 B）。
+- SQLite files_catalog：登记 1252 行，须按口径解读——其中 616 行是回补期登记的规范路径（/opt/okx-quant/data/historical/...），
+  636 行是归档通道登记的未规范化路径（/opt/okx-quant/scripts/../data/historical/...），两者指向同一批文件；去重后实际 636 个文件、
+  行数合计 226,576，与 DuckDB 全库总数完全相等。20 个 2026-11-25 日文件仅以后一种拼写登记。路径拼写缺陷见 Q-20261125-01。
+- 缺口扫描（自各序列 min open 至 max open，按周期步长全量比对）：20/20 零缺失；Parquet 独立读 distinct open 数 = 行数（无重复 open）。
+- 成交量交叉验证（全量）：BTC-USDT-SWAP 按 ctVal=0.01 核对 volume_base = volume_contract × 0.01，56,644 行零偏差；
+  ETH-USDT-SWAP 按 ctVal=0.1 核对，56,644 行零偏差（阈值 1e-9）。
+- Raw 批次 SHA-256：运行窗口内 3712 个 raw 文件逐一计算 SHA-256，与 ingest.log 的 raw_saved 记录比对，3712/3712 通过，0 不符；
+  与 SQLite raw_batches 表比对亦 0 不符。磁盘 raw 文件 6108 个 vs catalog 6070 行 → 孤儿文件 38 个（见 Q-20261125-03）；
+  catalog 有行但文件缺失的为 0 行。
+- Parquet 日分区口径：日文件按 CST 日历日划分（UTC+8），非 UTC 日。例：klines-20261125.parquet（BTC 1m）含 567 行，
+  为 2026-11-25 00:00–09:26 CST（01:26Z），与运行结束 09:27 CST 一致。
+
+I. 历史保护比对（与 snapshot-before.json 逐项）
+--------------------------------------------------
+- 快照时间 2026-11-24 21:13:06 CST；比对截止点取各序列 smoke1 anchor（快照时最后已入库 open，见 B 节勾稽）。
+- opens MD5 口径（本次首次以文字固定）：对截止点及以下的 open_time_utc（epoch 毫秒，升序）取十进制字符串，每行一行、末尾带换行符，MD5。
+  该口径在 BTC-USDT 1m 上与快照值 97293213c674aa53ef42debd66b72d03 复算一致，并推广至其余 14 序列。
+- 结果：15/15 序列行数相等、opens MD5 相等：
+  BTC-USDT：1m 43199 / 5m 8640 / 15m 2879 / 1h 719 / 4h 179；
+  ETH-USDT：1m 43200 / 5m 8640 / 15m 2880 / 1h 719 / 4h 179；
+  BTC-USDT-SWAP：1m 43200 / 5m 8640 / 15m 2880 / 1h 719 / 4h 179。
+  （BTC-USDT 1m 为 43199 而非 43200，系回补窗口起点少 1 根边界行，非本轮所致；全量缺口扫描仍为 0。）
+- 快照中 Parquet 清单 MD5 与 Raw 清单 MD5 本次无法逐项复算：每小时归档全量重写全部 636 个 Parquet 文件（12 次 archive_pass，
+  文件数 616→636），文件级 SHA 全部变化，属设计行为而非数据篡改；行级内容已按上款验证不变。
+  其中 616 对孪生 catalog 行（规范路径 vs scripts/../ 路径）有 596 对 SHA/行数/min/max 全等；20 对差异均为 2026-11-24 日文件，
+  规范路径行是回补期旧态（如 ETH 1m 1208 行、max 12:07Z），scripts/../ 行是含运行行的现态（1440 行、max 23:59 CST），min open 不变。
+- 结论：anchor 及以下历史行零变化；采集器只在 anchor 之后追加新行。
+
+J. logs/continuous/ 全部日志文件 SHA-256 清单
+--------------------------------------------------
+共 22 个文件（含 smoke1/、smoke2/ 子目录）：
+e32fd4d9188fc44f0b12d663aaa8df5e1e08decd04f163eb33f1282f001f0686  api_requests.log
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  collector-stdout.log（空）
+1e2c63da0f93957872316185038ecdaab7df7b84e577225a454d516e236aa4fb  collector.log
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  errors.log（空）
+3418085a3db8fae9625a062ba3d0dc6e33f8ff764f2e4d1cacbcad7c55911a65  heartbeat.log
+d7b4897597df43f0b3e6553012892269a76029d160dddd087dfcfd37a62529b8  ingest.log
+63fcbf4b68b3dfb311e453ac669b53094f7c97f634879c8865f98eeda1e4931e  quality.log
+8678cf10777240b86ee7bafab58c12a461091abdb16c15dcd057f2275228e6c7  summary.json
+3c688b39a35523f4a122c0a0a69c691b8b111a5d18a04c7db3286ad5c5892578  smoke1/api_requests.log
+9398e872d3021c585dd3a462d08d593e7a4f6726eaeec2c3c6967bd3bfd7959b  smoke1/collector.log
+a9e1a85a994632f6ffa202a24db89f8950dc0875528ce79277a101be5878918f  smoke1/errors.log
+da1a1fa8abebc92f980d4daac28889baab054446b91f52911a07784e515f0217  smoke1/heartbeat.log
+863d38a5813e73886903b311882d4af4668f745a80f60953f01fdeac77db18cb  smoke1/ingest.log
+630cc014916b4eb93c47cf0016ab148a991c11f2c49aa7ae77669f2161b477d0  smoke1/quality.log
+2838e011155f42852d7b9933100381e19f22036c7743a25bbd0fb9e53f249cd4  smoke1/summary.json
+cea9f99bf3133b94a87bbfac39c15845ff0989022d49ff42b527870ce14d6dd1  smoke2/api_requests.log
+06761a5e6b63231f14cba07cf90896d33f77badc9d4d85c75a3bb68b9b24353e  smoke2/collector.log
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  smoke2/errors.log（空）
+9d3fb31088b4b3c424cc421b61770ea9e404454b4e59f45165c96934a248787d  smoke2/heartbeat.log
+308e0814940d5436b0e1c535a387e1fba52233f02ec86096daaa0f59a65ccf70  smoke2/ingest.log
+8002553445400365a0e2f3a4989c2ef2a0d7a864ffdf2e60881598e57e587035  smoke2/quality.log
+be2ccca35b64064cb16d8bbf923b8e47def9fd7ec742a94c6ae48777d600829c  smoke2/summary.json
+
+K. ETH-USDT-SWAP 规格证据
+---------------------------
+- 原始响应：data/raw/exchange=okx/market_type=swap/data_type=instrument_metadata/instrument_id=ETH-USDT-SWAP/instruments-1795525998706.json.gz，
+  SHA-256 = 7dbb9a2a8e3f908f86705b3ad81d6e883050f128483e4975c142aa1b2499a6c4（收尾复核一致）。
+- 实测字段：instId=ETH-USDT-SWAP，instType=SWAP，ctVal=0.1，ctValCcy=ETH，ctMult=1，tickSz=0.01，settleCcy=USDT，state=live，lotSz=0.01，minSz=0.01。
+- 30 天回补（2026-11-24 21:13–21:18 CST）共 55,619 行：1m 43200 / 5m 8640 / 15m 2880 / 1h 720 / 4h 179。
+  其中 1h 为 720 行而非其余三组快照中的 719 行，系回补窗口边界多 1 根；验算：现总数 732 − 冒烟 2 入库 0 − 本轮入库 12 = 720。
+  成交量按 ctVal=0.1 全量交叉验证通过（本次复核 56,644 行零偏差，见 H）。
+
+L. 冒烟记录（启动前两次）
+---------------------------
+- 冒烟 1：2026-11-24 13:17:58–13:22:08Z。84 次请求，9 次失败，27 次重试；errors.log 45 条：36× DuckDB “Resource In Use”
+  （fetchone 循环未消费结果集堵死连接）+ 9× OKX code 51000 “Parameter bar error”（1h/4h 小写被拒）；quality anomaly 60；
+  入库 0 行。暴露的两个 bug 均在启动前修复：bar 参数改为大写 1H/4H、参数类错误改为不可重试；
+  DuckDB 查询改为单次批量 IN 查询 + fetchall。修复后冒烟 1 的数据未污染正式运行（入库 0）。
+- 冒烟 2：13:22:59–13:27:11Z，全绿。36 次请求，0 失败，0 重试；入库 393 行（补齐回补结束约 12:06Z 至 anchor 13:25Z 的滞后）；
+  quality.log 9 条：4× 1m 序列 freshness_and_integrity anomaly（missing_bars=1，db_max 13:25 vs latest_closed 13:26——
+  13:26 根在检查时刻尚未收盘入库，属时序边界，运行首周期即补齐）+ 1 条 pass_complete（anomalies_present，series_behind 为 4 个 1m 序列）；
+  errors.log 空。
+
+M. 待决问题（已写入仓库 crypto-quant-research-platform/QUESTIONS.md，编号 Q-20261125-01 至 Q-20261125-09）
+------------------------------------------------------------------------------------------------------------------
+- Q-20261125-01（新发现）：files_catalog 路径未规范化，同一文件双倍登记（详见 H/I）。
+- Q-20261125-02（已知）：15 个序列 ingest_cursor_utc 仍为 NULL，待下次回补填充（仅 ETH-USDT-SWAP 5 序列有值）。
+- Q-20261125-03（已知）：raw 孤儿文件 38 个未自动清理（本次量化：磁盘 6108 个 vs catalog 6070 行）。
+- Q-20261125-04（新发现）：每小时归档全量重写 636 个 Parquet 文件，写放大且文件级 SHA 无法用于历史比对。
+- Q-20261125-05（新发现）：运行窗口内磁盘下降 1.34GB 系同期 Codex 安装所致；建议心跳磁盘口径备注或采集器独占期避免大安装。
+- Q-20261125-06（已知，门控）：币安接入与网络/重启恢复测试仍未做。
+- Q-20261125-07（新发现）：冒烟 2 质量检查把“最新已收盘 K 线尚未入库”报为 anomaly（1 根滞后），建议容忍 1 根时序边界滞后。
+- Q-20261125-08（新发现）：4 条 quality_anomalies（BTC 永续 5m，2026-11-23 缺口）状态为 resolved 但无处理过程记录。
+- Q-20261125-09（新发现）：cursors.total_duplicates 累计值口径存疑（BTC-USDT-SWAP 5m 为 8636，远高于现货 5m 的 287），需确认仅为回补期重叠页重复计数。
+- 代码快照：服务器代码自上次建档后无变化（app/scripts/tests rsync --checksum 零差异；pyproject.toml 与两份 lock 文件 SHA 与仓库一致），
+  本次不刷新 code/ 快照。
+
+结论
+----
+B1 第四步 12 小时试运行全部通过：20 序列入库 3712 行，API 3712 次零失败零重试，错误日志为空，质量检查 699 次全过，
+进程无中断、到点自停；DuckDB/Parquet/SQLite 三方一致、20 序列零缺口、运行期 3712 个 Raw 批次 SHA-256 全量通过；
+15 组历史数据行数与 opens MD5 与施工前快照全等，零改写。待决问题 9 条已入 QUESTIONS.md，其中 files_catalog 路径拼写缺陷
+与每小时全量重写归档为本次新发现，需审查者定方案；其余为已知开放项。本阶段工作到此为止，不进入下一阶段。
+
+—— Muse，2026-11-25
+核查方法：只读。DuckDB read_only 连接 + pyarrow 独立读 Parquet + SQLite URI mode=ro + 日志 JSONL 全量解析 + 文件 SHA-256 全量计算；
+opens MD5 口径见 I 节；核查脚本与中间结果见本地 hidden_files/b1-step4-verify-main.py、b1-step4-results.json。

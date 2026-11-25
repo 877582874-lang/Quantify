@@ -5,6 +5,13 @@
 
 ## 2026-11-25
 
+### B1 第四步 12 小时试运行完成（收尾 09:50–10:20 CST，只读核查）
+- 运行 2026-11-24 21:27:22 → 2026-11-25 09:27:33 CST，按计划到点自停（43210s，含 10s 收尾），无残留进程。
+- 20 序列入库 3712 行（1m 721、5m 144、15m 48、1h 12、4h 3，各 4 组），零失败、零重复、零修正；API 3712 次全 HTTP 200，零失败零重试，延迟 p50 67ms / p95 76ms；errors.log 为空；质量检查 699 次全过；心跳 698 条全 alive，RSS 131–188MB，无中断。
+- 终检：DuckDB/Parquet/SQLite 三方一致（全库 226,576 行）；20 序列缺口扫描零缺失；运行期 3712 个 Raw 批次 SHA-256 全量通过；成交量交叉验证 BTC 永续（ctVal 0.01）与 ETH 永续（ctVal 0.1）各 56,644 行零偏差；15 组历史数据行数与 opens MD5 与施工前快照全等，零改写。
+- 新发现两项已入 QUESTIONS.md：files_catalog 路径未规范化致同一文件双倍登记（Q-20261125-01）；每小时归档全量重写 636 个 Parquet 文件（Q-20261125-04）。另新增待审 7 条（含已知开放项量化：raw 孤儿文件 38 个、15 序列 ingest_cursor_utc 仍 NULL、币安与网络/重启恢复测试仍门控）。
+- 服务器代码自上次建档后无变化（app/scripts/tests 校验零差异），code/ 快照未刷新。报告见 `crypto-quant-research-platform/reports/2026-11-25/B1-step4-12h-run-report.txt`；待决问题见 `QUESTIONS.md`。—— Muse
+
 ### 记忆库建立（memory/）
 - 按 Cl 指令在本仓库新建跨会话记忆库 `memory/`：README（用途与入库规则）、rules-and-preferences（常设规则）、infrastructure（服务器/密钥指纹/代理）、project-status（平台状态）、codex-remote（远程控制全记录）、claude-code（已卸载留档）、timeline（两日时间线）。此前全部关键事实首次整理入库；今后 Muse 主动维护。—— Muse
 
