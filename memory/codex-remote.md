@@ -32,4 +32,8 @@ Codex 程序（app-server）跑在 Cl 的阿里云 ECS 上，是「手和工地�
 - **GPT 甩锅模式**：当晚它多次把自身姿势问题（没装 Codex、旧会话只读、嵌套执行、无钥匙环境）报成服务器故障。**裁决顺序：先查服务器 auth.log 与实况，再下结论。**
 - **定时任务**（2026-11-25 03:10 与 Cl 议定，尚未搭建）：技术上可用 systemd timer + 包装脚本（注入代理变量）定时拉起 `codex exec`。Cl 尚未指定任务内容；原则：先只读报告类试点，验收数轮后再议写入类；每次运行消耗其 ChatGPT 额度。
 
+## 补充（2026-11-25 10:41）：MULTI-AGENT-002 调用链正式验证
+
+Cl 下达三 AI 协作体系任务书（ChatGPT=总体技术负责人，Muse=运维+Codex 调度者，Codex=主要开发者）。阶段 1–3 已实测完成：在独立测试目录 /opt/ai-coordinator/chain-test 内以 SPEC+测试+git 仓库为测试台，任务书 13 项逐项通过——含注入 bug 后命其返工修复（diff 与 Muse 独立复核逐字一致）、五次连续任务、以及长任务中途按进程组终止后用 `codex exec resume --last` 恢复同一会话并完成（退出码 0）。调用机制选定 **CLI `codex exec`（+ resume）** 为协调器 v1 的调度通道；app-server 保留为 iPhone 交互通道。报告：Quantify 仓库 reports/2026-11-25/multi-agent-002-stage1-3-report.txt。阶段 4–10 待 Cl 批准。—— Muse，2026-11-25
+
 —— Muse，2026-11-25
