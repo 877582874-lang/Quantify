@@ -110,7 +110,7 @@ def get_task(db, task_id):
     return row
 
 
-def run_task(task_id):
+def run_task(task_id, note=None):
     with connect() as db:
         task = get_task(db, task_id)
         if task["permission_level"] in ("P2", "P3") and not task["approval_by"]:
@@ -128,6 +128,9 @@ def run_task(task_id):
             return 2
         env_obj = json.loads((TASKS_DIR / task_id / "envelope.json").read_text()) if (TASKS_DIR / task_id / "envelope.json").exists() else None
         full_envelope = json.dumps(env_obj, ensure_ascii=False, indent=2) if env_obj else (TASKS_DIR / task_id / "task.md").read_text(encoding="utf-8")
+        if note is not None:
+            full_envelope += "\n\n## 调度补充说明\n\n" + note
+            event(db, task_id, "system", "run_note", note)
         transition(db, task_id, "dispatched", "system", "run requested")
         transition(db, task_id, "running", "system", "codex process starting")
         binary = os.environ.get("COORDINATOR_CODEX_BIN", "codex")
@@ -229,7 +232,7 @@ def main(argv=None):
     sub = p.add_subparsers(dest="cmd", required=True)
     sub.add_parser("init")
     a = sub.add_parser("add"); a.add_argument("--file", required=True)
-    r = sub.add_parser("run"); r.add_argument("task_id")
+    r = sub.add_parser("run"); r.add_argument("task_id"); r.add_argument("--note")
     s = sub.add_parser("status"); s.add_argument("task_id")
     sub.add_parser("list")
     v = sub.add_parser("review"); v.add_argument("task_id"); v.add_argument("--verdict", required=True, choices=("accepted", "rework", "rejected")); v.add_argument("--note", required=True)
@@ -240,7 +243,7 @@ def main(argv=None):
         if args.cmd == "init": init_db(); print(f"initialized {DB}"); return 0
         if args.cmd == "add": init_db(); add(args.file); return 0
         init_db()
-        if args.cmd == "run": return run_task(args.task_id)
+        if args.cmd == "run": return run_task(args.task_id, args.note)
         if args.cmd == "status": status(args.task_id); return 0
         if args.cmd == "list": list_tasks(); return 0
         if args.cmd == "approve": approve(args.task_id, args.by, args.note); return 0

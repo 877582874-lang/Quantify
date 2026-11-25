@@ -5,6 +5,11 @@
 
 ## 2026-11-25
 
+### MULTI-AGENT-002 — 阶段 7 完成（自动调度与返工闭环）
+- driver.py 上线（/opt/ai-coordinator）：读 brief 串行派发子任务，机械验收三项（退出码 / verify_cmd / git 合规基线比对），失败自动返工（默认上限 2）、闸门拒跑立即升级、超限停 brief；coordinator 的 run 同步增加 --note 返工说明注入。全套测试 10/10（Muse 独立复跑）。代码快照已更新入本仓 multi-agent/coordinator/。
+- 实弹 BRIEF-20261125-01：两子任务无人值守一轮全过，Muse 语义复核 accepted；台账 TASK-20261125-02..08 共 7 条全 accepted。
+- 首个 ChatGPT 审查包：multi-agent/reviews/BRIEF-20261125-01-review.md（含 3 项已知局限与 3 个待裁决问题）。报告：reports/2026-11-25/multi-agent-002-stage7-report.txt。阶段 8–10 待 Cl 批准。—— Muse
+
 ### MULTI-AGENT-002 — 阶段 6 完成（最小协调器上线）
 - 协调器 v1 部署于服务器 /opt/ai-coordinator：设计 COORDINATOR_DESIGN.md（Muse）、实现 coordinator.py + 5 项测试 + recover systemd timer（Codex 著；本地仓库 main 已合并）。代码快照入本仓 multi-agent/coordinator/ 与 multi-agent/docs/。
 - 端到端实证（均经协调器执行并 accepted）：TASK-20261125-02 真实开发任务、TASK-03 P2 审批闸门（无批准拒跑、批准放行）、TASK-04 返工闭环（修两处复核缺陷并补回归测试）。recover timer 每 5 分钟巡检，已启用并实际触发。

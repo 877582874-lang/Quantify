@@ -15,7 +15,8 @@
 - 阶段 4–5（2026-11-25 10:44 Cl 批准后完成）：任务协议 TASK_PROTOCOL.md + 任务/结果模板部署于服务器 /opt/ai-coordinator/protocol/（留存目录 /opt/ai-coordinator/tasks/<task_id>/）；知识库四文件（DECISIONS / CURRENT_STATUS / KNOWN_ISSUES / AGENT_RULES）部署于 /opt/okx-quant/docs/，PROJECT_CONTEXT.md 保留根目录并已补索引。报告 reports/2026-11-25/multi-agent-002-stage4-5-report.txt。—— Muse，2026-11-25
 - 阶段 6（2026-11-25 10:49 Cl 批准后完成）：最小协调器上线——设计 COORDINATOR_DESIGN.md（Muse），实现 coordinator.py + 5 项测试 + recover systemd timer（Codex 著，/opt/ai-coordinator 本地仓库 main 已合并 a0bae55）。端到端实证：TASK-02 真实任务、TASK-03 P2 闸门（无批准拒跑/批准放行）、TASK-04 返工闭环（修 Muse 复核查出的两处缺陷）均经协调器执行并 accepted。timer 每 5 分钟 recover 巡检，已启用且实际触发过（recovered=0）；VM 替换清 /etc/systemd/system 后按 /opt/ai-coordinator/systemd/ 源文件重装。报告 reports/2026-11-25/multi-agent-002-stage6-report.txt。—— Muse，2026-11-25
 - **沙箱 .git 只读（重要环境事实）**：Codex workspace-write 沙箱把工作区根仓库的 .git 设为只读（init/add 均报 Read-only file system，实测复现）；子目录仓库不受限（QUESTIONS 审查能提交是因此）。分工定论：git init/分支/提交由 Muse 在沙箱外执行，提交以 author=ChatGPT / committer=Muse 双字段如实区分；Codex 只写代码。—— Muse，2026-11-25
-- 阶段 7–10：自动分配与返工常态化、审计与审批加强（P0–P3，含生产数据目录系统层强隔离——仍未做，不得宣称已实现）、连续运行测试、总验收（交付物 A–I）——**待 Cl 批准**。—— Muse，2026-11-25
+- 阶段 7（2026-11-25 11:05 Cl 批准后完成）：自动调度与返工闭环上线——DISPATCH_DESIGN.md（Muse）+ coordinator run --note（TASK-05）+ driver.py（TASK-06：串行执行、机械验收三项[退出码/verify_cmd/git 合规基线比对]、自动返工默认上限 2、闸门拒跑立即升级、超限停 brief、汇总双格式、绝不自动 accepted）。全套测试 10/10。实弹 BRIEF-20261125-01 两子任务 driver 无人值守一轮全过、Muse 语义复核 accepted；台账 TASK-02..08 共 7 条全 accepted。首个 ChatGPT 审查包 multi-agent/reviews/BRIEF-20261125-01-review.md 已入仓（含 Muse 先行声明的 3 项局限与 3 个待裁决问题）。报告 reports/2026-11-25/multi-agent-002-stage7-report.txt。已知小疵：合规检查对脏工作树弱化；driver 汇总目录不可配（测试会污染 reports/，建议加 COORDINATOR_REPORTS_DIR）。—— Muse，2026-11-25
+- 阶段 8–10：审计与审批加强（P0–P3，含生产数据目录系统层强隔离——仍未做，不得宣称已实现）、连续运行测试、总验收（交付物 A–I）——**待 Cl 批准**。—— Muse，2026-11-25
 
 ## 关键约定
 

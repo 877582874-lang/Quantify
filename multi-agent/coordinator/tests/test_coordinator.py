@@ -77,6 +77,21 @@ class CoordinatorTests(unittest.TestCase):
         for event in ("status_transition", "codex_started", "returned"):
             self.assertIn(event, status)
 
+    def test_stub_codex_run_note_is_in_prompt_and_audited(self):
+        self.add()
+        stub = self.base / "codex-stub"
+        stub.write_text("#!/bin/sh\nprintf 'argv:'\nprintf ' <%s>' \"$@\"\nprintf '\\nstub-output\\n'\nexit 0\n", encoding="utf-8")
+        stub.chmod(0o755)
+        env = dict(self.env, COORDINATOR_CODEX_BIN=str(stub))
+        note = "修复失败用例并保留错误日志"
+        self.call("run", "TASK-20261125-01", "--note", note, env=env)
+        log = (self.task_dir / "TASK-20261125-01" / "exec.log").read_text()
+        self.assertIn(note, log)
+        self.assertIn("## 调度补充说明", log)
+        status = self.call("status", "TASK-20261125-01").stdout
+        self.assertIn("system run_note:", status)
+        self.assertIn(note, status)
+
     def test_recover_marks_dead_running_task_interrupted(self):
         self.add()
         import sqlite3
