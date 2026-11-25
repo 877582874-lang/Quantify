@@ -1,0 +1,10 @@
+[Unit]
+Description=Periodically recover interrupted AI coordinator tasks
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=5min
+Unit=ai-coordinator-recover.service
+
+[Install]
+WantedBy=timers.target

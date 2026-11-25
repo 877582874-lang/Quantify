@@ -1,0 +1,7 @@
+[Unit]
+Description=Recover interrupted AI coordinator tasks
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/ai-coordinator
+ExecStart=/usr/bin/python3 /opt/ai-coordinator/coordinator/coordinator.py recover

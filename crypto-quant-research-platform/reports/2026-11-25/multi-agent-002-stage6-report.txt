@@ -1,0 +1,49 @@
+MULTI-AGENT-002 三 AI 自主协作体系建设 — 阶段 6 完成报告（最小协调器）
+执行：Muse（设计/调度/复核/运维）+ Codex（实现）。日期：2026-11-25（Asia/Shanghai）。批准：Cl 于 2026-11-25 10:49 批准阶段 6。
+纪律：协调器只部署于 /opt/ai-coordinator，与量化生产代码/数据物理分离；/opt/okx-quant 全程零写入（.env、原 venv 基线复核无变化）。
+
+============================================================
+一、交付物
+============================================================
+设计：/opt/ai-coordinator/docs/COORDINATOR_DESIGN.md（Muse 著）。
+实现（Codex 著，仓库 /opt/ai-coordinator，main 已合并，工作区干净）：
+- coordinator/coordinator.py —— 单文件 CLI（Python 标准库，兼容 3.10，零第三方依赖）：init / add / run / status / list / review / approve / recover。
+- coordinator/tests/test_coordinator.py —— 5 项 unittest（临时库 + stub codex，绝不真调）。
+- systemd/ai-coordinator-recover.service + .timer —— 每 5 分钟 recover 巡检，已安装启用并实际触发（见第四节）。
+数据：SQLite 双表 tasks/events；每次状态迁移必写 events（审计链）；每任务证据目录 tasks/<task_id>/（task.md、envelope.json、exec.log、diff.patch）。
+提交链（author/committer 如实区分）：2633894 实现（author ChatGPT / committer Muse）→ 3f321eb 缺陷修复（同）→ a0bae55 合并（Muse）。
+
+============================================================
+二、关键发现：沙箱 .git 只读（本阶段最重要的环境事实）
+============================================================
+实测：Codex 的 workspace-write 沙箱把**工作区根仓库**的 .git 设为只读——git init / git add 均报 Read-only file system（chain-test/work 微型实测复现：index.lock 创建失败）。子目录中的仓库不受此限（此前 QUESTIONS 审查能提交，正因当时 cwd 在仓库的父目录）。
+处置（已写入 TASK-20261125-01 信封修订节）：git 的 init/分支/提交由 Muse 在沙箱外执行，Codex 专注写代码；提交用 git 的 author（ChatGPT）/ committer（Muse）双字段如实区分，不冒充。
+影响：今后凡以仓库根为 workdir 的 Codex 任务，git 操作一律走此分工；或把 cwd 设为仓库父目录（会扩大可写范围，不推荐）。
+
+============================================================
+三、派发过程（如实记录，三次受阻均定位到因）
+============================================================
+第 1 次：Muse 的派发命令漏 --skip-git-repo-check 且目录尚非 git 仓库，codex 直接拒绝（Muse 的错）。
+第 2 次：Codex 把"尚非 git 仓库"（本是任务预期起点）按"失败即停"字面执行而停工——信封措辞已修正：预期状态不算失败。
+第 3 次：撞上沙箱 .git 只读（见第二节），据此修订 git 职责后第 4 次成功。第 4 次中途 Muse 侧服务重启断了 SSH，但服务器上的 codex 进程存活并独立完成（日志核对无误）。
+
+============================================================
+四、验收证据（Muse 独立复核，非采信自评）
+============================================================
+- 代码通读：闸门（P2/P3 无批准 run 必拒、deploy=yes 同理、workdir 校验）、返工上限 3 轮、recover 的 pid 存活判定、超时杀进程组、diff 留存，均与设计一致。
+- 测试：Muse 独立运行两轮——实现版 4/4 通过；返工后 5/5 通过（含新增回归：全新 DB 直接 add、stub 回显断言 --skip-git-repo-check 在 argv 中）。
+- 端到端（全部经协调器本身执行，台账状态均为 accepted）：
+  * TASK-20261125-02：真实 Codex 在隔离目录给 calc.py 新增 mod() 并补测试，Muse 独立跑 unittest 通过，diff.patch 已留存。
+  * TASK-20261125-03：P2 闸门演示——无批准 run 被拒（退出码 2，run_denied 事件）；approve 后放行并完成只读统计。
+  * TASK-20261125-04：返工闭环——Muse 复核 TASK-01 产物查出两处缺陷（缺 --skip-git-repo-check；add 前未建表），经协调器派 Codex 修复并各补回归测试，Muse 复验通过后 accepted。
+- systemd：timer 已 enabled，2026-11-25 11:01:10 CST 首次自动触发，service 日志 recovered=0、正常结束。注意：VM 替换会清 /etc/systemd/system，unit 源文件在 /opt/ai-coordinator/systemd/，按源文件重装即可。
+- 说明：TASK-20261125-01 是协调器诞生前的引导任务，由 Muse 按协议手工派发（信封在 tasks/TASK-20261125-01/task.md），未走协调器台账；台账自 TASK-20261125-02 起。
+
+============================================================
+五、未做 / 待后续阶段
+============================================================
+- 生产数据目录的系统层强隔离（只读挂载/独立低权账户）：仍未做，属阶段 8（审计与权限）范围，不冒充已实现。
+- 协调器不做自动派活/自动合并/自动部署（设计非目标）；任务仍由 Muse 签发。
+- 阶段 7（自动分配/执行/检查/返工闭环常态化）、阶段 8（审计与审批加强）、阶段 9（连续运行测试）、阶段 10（总验收 A–I）待 Cl 批准。
+
+—— Muse，2026-11-25

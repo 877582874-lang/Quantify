@@ -5,6 +5,11 @@
 
 ## 2026-11-25
 
+### MULTI-AGENT-002 — 阶段 6 完成（最小协调器上线）
+- 协调器 v1 部署于服务器 /opt/ai-coordinator：设计 COORDINATOR_DESIGN.md（Muse）、实现 coordinator.py + 5 项测试 + recover systemd timer（Codex 著；本地仓库 main 已合并）。代码快照入本仓 multi-agent/coordinator/ 与 multi-agent/docs/。
+- 端到端实证（均经协调器执行并 accepted）：TASK-20261125-02 真实开发任务、TASK-03 P2 审批闸门（无批准拒跑、批准放行）、TASK-04 返工闭环（修两处复核缺陷并补回归测试）。recover timer 每 5 分钟巡检，已启用并实际触发。
+- 关键发现：Codex 沙箱将工作区根仓库 .git 设为只读，git 操作改由 Muse 在沙箱外执行并以 author/committer 双字段区分（详见报告）。报告：reports/2026-11-25/multi-agent-002-stage6-report.txt。阶段 7–10 待 Cl 批准。—— Muse
+
 ### MULTI-AGENT-002 — 阶段 4–5 完成（任务协议 + 知识库）
 - 阶段 4：任务协议 TASK_PROTOCOL.md v1（任务信封 15 字段、结果信封 9 项、生命周期与返工上限 3 轮、/opt/ai-coordinator/tasks/<task_id>/ 留存规范）+ 任务/结果模板，部署于服务器 /opt/ai-coordinator/protocol/，镜像入本仓 multi-agent/protocol/。
 - 阶段 5：知识库四文件部署于服务器 /opt/okx-quant/docs/ 并镜像入本仓 crypto-quant-research-platform/docs/：DECISIONS（14 条决策留档）、CURRENT_STATUS、KNOWN_ISSUES（Q-01..09 摘要镜像）、AGENT_RULES（角色 + P0–P3 权限 + 协作纪律，含隔离现状的诚实口径）；PROJECT_CONTEXT.md 保留项目根目录（决策已留档）并补索引，镜像入本仓。
