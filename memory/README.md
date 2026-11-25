@@ -23,6 +23,7 @@
 | `codex-remote.md` | ChatGPT/Codex 远程控制：架构、代理、登录、沙箱、已验证能力、经验教训 |
 | `claude-code.md` | Claude Code：已按 Cl 决定卸载（封号风险），仅留档记录 |
 | `timeline.md` | 2026-11-24 至 11-25 的关键时间线（便于快速对齐上下文） |
+| `multi-agent.md` | 三 AI 协作体系（MULTI-AGENT-002）：分工、进度、权限约定 |
 
 关联文件：仓库根目录 `crypto-quant-research-platform/QUESTIONS.md`（待审查问题池）、`CHANGELOG.md`（版本变更流水）。
 

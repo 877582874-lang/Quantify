@@ -5,6 +5,11 @@
 
 ## 2026-11-25
 
+### MULTI-AGENT-002 — 阶段 4–5 完成（任务协议 + 知识库）
+- 阶段 4：任务协议 TASK_PROTOCOL.md v1（任务信封 15 字段、结果信封 9 项、生命周期与返工上限 3 轮、/opt/ai-coordinator/tasks/<task_id>/ 留存规范）+ 任务/结果模板，部署于服务器 /opt/ai-coordinator/protocol/，镜像入本仓 multi-agent/protocol/。
+- 阶段 5：知识库四文件部署于服务器 /opt/okx-quant/docs/ 并镜像入本仓 crypto-quant-research-platform/docs/：DECISIONS（14 条决策留档）、CURRENT_STATUS、KNOWN_ISSUES（Q-01..09 摘要镜像）、AGENT_RULES（角色 + P0–P3 权限 + 协作纪律，含隔离现状的诚实口径）；PROJECT_CONTEXT.md 保留项目根目录（决策已留档）并补索引，镜像入本仓。
+- 报告：reports/2026-11-25/multi-agent-002-stage4-5-report.txt。阶段 6–10 待 Cl 批准。—— Muse
+
 ### MULTI-AGENT-002 三 AI 协作体系 — 阶段 1–3 验证完成
 - 阶段 1 盘点：Codex 0.172.0 / Node 26.13.1 / 数据 venv Python 3.12.16；mihomo、caddy、docker 均 active；协调器预留目录 /opt/ai-coordinator 已建。
 - 阶段 2+3 调用链实测（独立测试目录 /opt/ai-coordinator/chain-test，未触碰生产）：任务书 13 项逐项通过——CLI 启动、指定目录、完整任务传递、读文件（暗号逐字命中）、建/改文件、执行测试、完整输出留存、退出码获取、Git diff 独立复核一致、注入 bug 后返工修复、五次连续任务、中断后 `codex exec resume --last` 恢复完成；调用机制选定 CLI exec（app-server 保留为交互通道）。

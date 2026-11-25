@@ -1,0 +1,39 @@
+MULTI-AGENT-002 三 AI 自主协作体系建设 — 阶段 4–5 完成报告
+执行：Muse。日期：2026-11-25（Asia/Shanghai）。批准：Cl 于 2026-11-25 10:44 在对话中批准继续阶段 4–5。
+纪律：本阶段只写协议与知识库文档，未改量化生产代码、生产数据，未重启任何服务；.env 与原 venv 基线复核无变化。
+
+============================================================
+阶段 4：统一任务协议（已落地）
+============================================================
+部署位置：/opt/ai-coordinator/protocol/
+- TASK_PROTOCOL.md —— 任务协议 v1：
+  * 任务信封 15 个字段：task_id（TASK-YYYYMMDD-NN）、title、objective、workdir、allowed_files、forbidden_files、requirements、acceptance、tests、evidence_required、git_commit（none/branch）、deploy、permission_level（P0–P3）、approval（P2/P3 必填）、timeout。
+  * 结果信封 9 项：修改/新增/删除文件清单、关键实现说明、测试命令、测试结果（原始输出）、Git diff、未解决问题、风险说明、验收自评；并明文规定 Codex 自评不等于验收、Codex 不得自审其代码。
+  * 生命周期：created → dispatched → running → returned → reviewing → accepted，返工上限 3 轮，超限升级 Cl/ChatGPT；中断凭 task_id + 留存目录恢复（优先 codex exec resume）。
+  * 留存规范：每任务一目录 /opt/ai-coordinator/tasks/<task_id>/（task.md / exec.log / result.md / diff.patch），tasks/ 根目录已建。
+- templates/task-template.md、templates/result-template.md —— 信封模板，含 Muse 复核签署栏。
+
+============================================================
+阶段 5：共享项目知识库（已补齐）
+============================================================
+部署位置：/opt/okx-quant/docs/（PROJECT_CONTEXT.md 保持项目根目录，理由见下）
+- DECISIONS.md —— 14 条关键决策留档（数据管线分层、final-only 口径、B1 边界、游标语义、采集器铁律、留档与署名、后台全删、ChatGPT 授权、代理方案、Claude Code 卸载、记忆库、PROJECT_CONTEXT 位置、三 AI 分工、CLI 调度机制），每条含日期、决定方、依据。
+- CURRENT_STATUS.md —— 现状快照：B1 四步完成且 12h 试运行验收通过（全库 226,576 行）、当前无采集进程、门禁清单、待裁决 9 问。
+- KNOWN_ISSUES.md —— Q-20261125-01..09 摘要镜像表（一句话问题、影响、ChatGPT 审查立场），与 QUESTIONS.md 双向同步规则。
+- AGENT_RULES.md —— 角色职责、P0–P3 权限四级与执行要求、协作纪律（一写者原则、署名、证据优先、停止条件、秘密禁区、生产红线）。其中如实标注现状：Codex 对生产数据目录的隔离目前主要靠红线+任务信封，系统层强隔离（只读挂载/独立低权账户）列入阶段 6–8，未冒充已实现。
+- PROJECT_CONTEXT.md 已同步更新索引（延伸阅读补入四份知识库文件与任务协议路径）。
+
+路径决策说明：任务书第五节建议 docs/PROJECT_CONTEXT.md；既有统一规则文件已在项目根目录且已被 Codex 审查流程实际引用，故保留根路径、其余四份建于 docs/，并已在 DECISIONS.md 留档。此决策如 Cl 不认可，可整体迁移并留痕。
+
+============================================================
+归档
+============================================================
+- 本报告与全部新文件已同步入 Quantify 仓库：报告在 crypto-quant-research-platform/reports/2026-11-25/；知识库四文件镜像至 crypto-quant-research-platform/docs/；PROJECT_CONTEXT.md 镜像至 crypto-quant-research-platform/；协议与模板镜像至 multi-agent/protocol/。
+- 记忆库新增 memory/multi-agent.md 并更新索引；CHANGELOG 已加条目（署名 Muse）。
+
+============================================================
+下一阶段（等待 Cl 批准）
+============================================================
+阶段 6：最小协调器设计与实现（Python + SQLite + Git + systemd，部署 /opt/ai-coordinator；含任务登记/分配/状态/调用/结果收集/重试/审查状态/人工审批/审计日志/恢复），并落实权限系统层隔离的第一步。阶段 7–10 随后。
+
+—— Muse，2026-11-25
