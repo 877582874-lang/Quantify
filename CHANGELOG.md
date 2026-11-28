@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## 2026-11-28 — QUANT-V2-TWAP-20261128-003（Muse）
+自算 BTC/USD TWAP-60s（quant-twap 服务）：四源逐笔成交事件驱动
+精确积分 + 中位数合成，1 秒发布；Chainlink 官方流为凭证制付费
+产品（Feed ID 打码），本服务为同口径最近似，源间价差随值发布
+（上线实测 ≈4.7 bps）。网页端 magacquant.duckdns.org 恢复
+（全清时删除）：TWAP 现值页 + 分源表 + 2 小时走势，basic_auth
+重新生成密码（仅聊天交付，未落盘）。报告：
+quant-v2/reports/2026-11-28/quant-v2-twap-20261128-003-report.txt
+
 ## 2026-11-28 — QUANT-V2-CLEAN-AGG-20261128-002（Muse）
 数据管道加固：清洗层（逐笔时间戳护栏/值域隔离/对侧比价 suspect、
 快照倒挂跳过+连续强制重建/中间价脱节标记、K 线周期对齐+未来戳

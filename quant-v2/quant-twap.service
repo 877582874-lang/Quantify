@@ -1,0 +1,18 @@
+[Unit]
+Description=Quant System v2 TWAP-60s (self-computed Chainlink-style BTC/USD TWAP for the web page)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/quant-system
+Environment=PYTHONPATH=/opt/quant-system/pylib
+ExecStart=/usr/bin/python3 /opt/quant-system/twap_service.py
+Restart=always
+RestartSec=10
+StandardOutput=append:/opt/quant-system/logs/twap.log
+StandardError=append:/opt/quant-system/logs/twap.log
+
+[Install]
+WantedBy=multi-user.target

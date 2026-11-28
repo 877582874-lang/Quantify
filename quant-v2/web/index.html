@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BTC/USD TWAP-60s</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin:0; font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+         background:#0b0e13; color:#e8ecf1; }
+  .wrap { max-width:720px; margin:0 auto; padding:28px 18px 40px; }
+  h1 { font-size:15px; font-weight:600; color:#9fb0c3; margin:0 0 4px; letter-spacing:.04em;}
+  .sub { font-size:12px; color:#5f7189; margin-bottom:22px; }
+  .big { font-size:56px; font-weight:700; font-variant-numeric:tabular-nums; line-height:1.05; }
+  .big small { font-size:20px; color:#9fb0c3; font-weight:500; }
+  .meta { margin-top:8px; font-size:13px; color:#9fb0c3; font-variant-numeric:tabular-nums;}
+  .meta b { color:#e8ecf1; }
+  .warn { color:#ffb454; }
+  .stale { color:#ff6b6b; }
+  canvas { width:100%; height:120px; margin:22px 0 6px; background:#10151d;
+           border:1px solid #1d2635; border-radius:10px; }
+  table { width:100%; border-collapse:collapse; margin-top:14px; font-size:14px;
+          font-variant-numeric:tabular-nums; }
+  th, td { text-align:right; padding:8px 6px; border-bottom:1px solid #1d2635; }
+  th { color:#5f7189; font-weight:500; font-size:12px; }
+  td:first-child, th:first-child { text-align:left; }
+  .dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px; }
+  .ok { background:#3fb96f; } .bad { background:#ff6b6b; }
+  .foot { margin-top:20px; font-size:12px; color:#5f7189; line-height:1.7; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>BTC / USD · TWAP 60 秒（自算 · Chainlink 同口径）</h1>
+  <div class="sub">四源逐笔成交积分法 · 中位数合成 · 每秒更新</div>
+  <div class="big" id="twap">—</div>
+  <div class="meta" id="meta">连接中…</div>
+  <canvas id="chart" width="680" height="120"></canvas>
+  <table>
+    <thead><tr><th>数据源</th><th>TWAP-60s</th><th>最新成交</th><th>覆盖</th><th>状态</th></tr></thead>
+    <tbody id="rows"></tbody>
+  </table>
+  <div class="foot">
+    口径：TWAP = 最近 60 秒内成交价的时间加权积分（逐笔事件驱动，零阶保持），
+    合成值取四源中位数；源间价差越小，数值越可信。<br>
+    注意：Chainlink 官方流为付费凭证产品，本页是同口径自算的最近似值，
+    与 Gate 实际结算值在极端行情下可能有零点几个百分点的基差。
+  </div>
+</div>
+<script>
+const fmt = n => n == null ? "—" : n.toLocaleString("en-US",{minimumFractionDigits:2, maximumFractionDigits:2});
+async function tick(){
+  try {
+    const d = await (await fetch("twap.json?t=" + Date.now())).json();
+    const el = document.getElementById("twap");
+    el.innerHTML = d.twap == null ? "预热中…" : fmt(d.twap) + " <small>USD</small>";
+    const age = ((Date.now() - d.ts)/1000).toFixed(0);
+    let m = "源间价差 <b>" + (d.spread_bps == null ? "—" : d.spread_bps + " bps") +
+            "</b> · 更新于 " + new Date(d.ts).toLocaleTimeString("zh-CN") +
+            "（" + age + " 秒前）";
+    if (d.warming_up) m = "<span class='warn'>预热中：窗口数据不足 60 秒</span> · " + m;
+    if (age > 5) m += " · <span class='stale'>数据已滞后</span>";
+    document.getElementById("meta").innerHTML = m;
+    document.getElementById("rows").innerHTML = Object.entries(d.sources).map(([k,v]) =>
+      "<tr><td>" + k + "</td><td>" + fmt(v.twap) + "</td><td>" + fmt(v.last) +
+      "</td><td>" + v.coverage_s + "s</td><td><span class='dot " +
+      (v.fresh ? "ok" : "bad") + "'></span>" + (v.fresh ? "实时" : "滞后") +
+      "</td></tr>").join("");
+  } catch(e) {
+    document.getElementById("meta").innerHTML = "<span class='stale'>读取失败，重试中…</span>";
+  }
+}
+async function chart(){
+  try {
+    const h = await (await fetch("twap-history.json?t=" + Date.now())).json();
+    const c = document.getElementById("chart"), x = c.getContext("2d");
+    x.clearRect(0,0,c.width,c.height);
+    if (h.length < 2) return;
+    const vs = h.map(p => p.twap), lo = Math.min(...vs), hi = Math.max(...vs);
+    const pad = (hi - lo) * 0.15 || 1;
+    x.beginPath();
+    h.forEach((p,i) => {
+      const px = i/(h.length-1)*c.width;
+      const py = c.height - (p.twap - lo + pad)/((hi-lo) + 2*pad)*c.height;
+      i ? x.lineTo(px,py) : x.moveTo(px,py);
+    });
+    x.strokeStyle = "#f0b90b"; x.lineWidth = 1.6; x.stroke();
+    x.fillStyle = "#5f7189"; x.font = "11px sans-serif";
+    x.fillText(fmt(hi), 6, 14); x.fillText(fmt(lo), 6, c.height - 6);
+  } catch(e) {}
+}
+tick(); chart();
+setInterval(tick, 1000);
+setInterval(chart, 15000);
+</script>
+</body>
+</html>
