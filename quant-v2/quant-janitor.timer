@@ -1,0 +1,10 @@
+[Unit]
+Description=Run the quant disk janitor daily
+
+[Timer]
+OnCalendar=daily
+Persistent=true
+Unit=quant-janitor.service
+
+[Install]
+WantedBy=timers.target

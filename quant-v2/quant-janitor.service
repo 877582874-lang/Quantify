@@ -1,0 +1,10 @@
+[Unit]
+Description=Quant System v2 Disk Janitor (monitor only, deletes nothing)
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/opt/quant-system
+ExecStart=/usr/bin/python3 /opt/quant-system/quant_janitor.py
+StandardOutput=append:/opt/quant-system/logs/janitor.log
+StandardError=append:/opt/quant-system/logs/janitor.log

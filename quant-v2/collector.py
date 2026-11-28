@@ -37,6 +37,8 @@ INTERVALS = ("1m", "5m", "15m", "1h", "4h")
 OKX_BAR = {"1m": "1m", "5m": "5m", "15m": "15m", "1h": "1H", "4h": "4H"}
 DEV_LIMIT = 0.0010          # 0.10% max allowed cross-exchange close deviation
 PAIR_GRACE_MS = 15 * 60_000  # how long a staged bar waits for its counterpart
+INTERVAL_MS = {"1m": 60_000, "5m": 300_000, "15m": 900_000,
+               "1h": 3_600_000, "4h": 14_400_000}  # bar-open alignment grid
 FLOOR_MS = None             # set in main() from collector_meta / first-init
 
 
@@ -165,6 +167,14 @@ def db_open():
     db.execute("PRAGMA journal_mode=WAL")
     db.execute("PRAGMA synchronous=NORMAL")
     db.executescript(SCHEMA)
+    # available_ms (2026-11-28): the moment a promoted bar became usable
+    # (pair-gated promotion time). A backtest may only use a bar at
+    # times >= available_ms; rows promoted before this column existed
+    # stay NULL (= unknown), never backfilled with a fabricated value.
+    cols = [r[1] for r in db.execute("PRAGMA table_info(klines)")]
+    if "available_ms" not in cols:
+        db.execute("ALTER TABLE klines ADD COLUMN available_ms INTEGER")
+        db.commit()
     return db
 
 
@@ -197,6 +207,17 @@ def stage_bars(db, ex, mk, sym, iv, rows):
         t, o, h, l, c, vb, vq = row
         if t < FLOOR_MS:
             continue
+        # timestamp gates (2026-11-28): a bar whose open time is off the
+        # interval grid (incl. microsecond-scale values) or in the future
+        # is corrupt at the source - quarantine it, never stage it.
+        if t % INTERVAL_MS[iv] != 0:
+            quarantine(db, "ts_misaligned", ex, mk, sym, iv, row)
+            log(f"ANOMALY ts_misaligned {ex}/{mk}/{sym}/{iv} ts={t}")
+            continue
+        if t > nm:
+            quarantine(db, "ts_future", ex, mk, sym, iv, row)
+            log(f"ANOMALY ts_future {ex}/{mk}/{sym}/{iv} ts={t} now={nm}")
+            continue
         if not (l <= min(o, c) and max(o, c) <= h and l <= h and vb >= 0):
             quarantine(db, "ohlc_sanity", ex, mk, sym, iv, row)
             log(f"ANOMALY ohlc_sanity {ex}/{mk}/{sym}/{iv} ts={t} o={o} h={h} l={l} c={c}")
@@ -218,14 +239,15 @@ def promote(db):
          AND a.interval=b.interval AND a.open_time_utc=b.open_time_utc
         WHERE a.exchange='okx' AND b.exchange='binance'""").fetchall()
     promoted = 0
+    prom_ms = now_ms()
     for (mk, sym, iv, t, ao, ah, al, ac, avb, avq, bo, bh, bl, bc, bvb, bvq) in pairs:
         dev = abs(ac - bc) / ((ac + bc) / 2)
         a_row = (t, ao, ah, al, ac, avb, avq)
         b_row = (t, bo, bh, bl, bc, bvb, bvq)
         if dev <= DEV_LIMIT:
             for ex, row in (("okx", a_row), ("binance", b_row)):
-                db.execute("INSERT OR IGNORE INTO klines VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-                           (ex, mk, sym, iv) + row)
+                db.execute("INSERT OR IGNORE INTO klines VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                           (ex, mk, sym, iv) + row + (prom_ms,))
                 db.execute("DELETE FROM staging WHERE exchange=? AND market_type=?"
                            " AND symbol=? AND interval=? AND open_time_utc=?",
                            (ex, mk, sym, iv, t))

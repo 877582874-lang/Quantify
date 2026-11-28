@@ -40,6 +40,31 @@ DISK_RESUME = int(8.5 * 1024**3)
 SNAP_EVERY = 5
 SNAP_LEVELS = 100
 
+# ---------------- snapshot cleaning gates (2026-11-28, Cl's order) ----------------
+# (1) Crossed book (best bid >= best ask): the snapshot is NEVER archived;
+#     counted + logged, and 3 in a row force a full book rebuild.
+# (2) Mid-price sanity: the snapshot mid is cross-checked against the
+#     latest TRADE price for the same stream (shared by the trades
+#     service in logs/last-prices.json). Deviation > 1% -> the snapshot
+#     is archived WITH a "suspect" flag. A stale/missing reference
+#     disables the check rather than flagging everything.
+LASTPRICE_PATH = os.path.join(BASE, "logs", "last-prices.json")
+MID_DEV_LIMIT = 0.01
+PRICE_FRESH_MS = 120_000
+_lp_cache = {"mtime": 0, "data": {}}
+
+
+def load_last_prices():
+    try:
+        m = os.path.getmtime(LASTPRICE_PATH)
+        if m != _lp_cache["mtime"]:
+            with open(LASTPRICE_PATH) as f:
+                _lp_cache["data"] = json.load(f)
+            _lp_cache["mtime"] = m
+    except Exception:
+        pass
+    return _lp_cache["data"]
+
 from websockets.asyncio.client import connect as ws_connect
 
 
@@ -183,24 +208,58 @@ class BookStream:
         self.book = Book(factor)
         self.writer = HourWriter(os.path.join(DATA_DIR, ex, mk))
         self.stats = {"resyncs": 0, "checksum_failures": 0, "seq_breaks": 0,
-                      "updates": 0, "snapshots": 0, "snapshot_bytes": 0}
+                      "updates": 0, "snapshots": 0, "snapshot_bytes": 0,
+                      "crossed_skipped": 0, "suspect_snaps": 0}
+        self.crossed_streak = 0
+        self.resync_requested = False
+        self._ws = None
 
-    def snapshot_line(self):
-        return json.dumps({
-            "ts_utc": now_ms(), "exchange": self.ex, "market_type": self.mk,
-            "symbol": "BTC-USDT",
-            "bids": self.book.top("b", SNAP_LEVELS),
-            "asks": self.book.top("a", SNAP_LEVELS)}, separators=(",", ":"))
+    def snapshot_line(self, suspect=None):
+        rec = {"ts_utc": now_ms(), "exchange": self.ex, "market_type": self.mk,
+               "symbol": "BTC-USDT",
+               "bids": self.book.top("b", SNAP_LEVELS),
+               "asks": self.book.top("a", SNAP_LEVELS)}
+        if suspect:
+            rec["suspect"] = suspect
+        return json.dumps(rec, separators=(",", ":"))
 
     async def snapshot_loop(self):
         await asyncio.sleep(1 + (hash(self.name) % 4))  # stagger the four books
         while True:
             await asyncio.sleep(SNAP_EVERY)
-            if self.book.synced and not disk_suspended and (self.book.bids or self.book.asks):
-                line = self.snapshot_line()
-                self.writer.write_line(line, now_ms())
-                self.stats["snapshots"] += 1
-                self.stats["snapshot_bytes"] += len(line)
+            if not (self.book.synced and not disk_suspended
+                    and (self.book.bids or self.book.asks)):
+                continue
+            bids = self.book.top("b", 1)
+            asks = self.book.top("a", 1)
+            if bids and asks and bids[0][0] >= asks[0][0]:
+                # crossed book: never archive it as clean data
+                self.stats["crossed_skipped"] += 1
+                self.crossed_streak += 1
+                log(f"{self.name} CROSSED BOOK bid={bids[0][0]} ask={asks[0][0]} "
+                    f"streak={self.crossed_streak} -> snapshot skipped")
+                if self.crossed_streak >= 3:
+                    log(f"{self.name} crossed book persists -> forcing book rebuild")
+                    self.crossed_streak = 0
+                    self.book.synced = False
+                    self.resync_requested = True
+                    if self._ws is not None:
+                        await self._ws.close()
+                continue
+            self.crossed_streak = 0
+            suspect = None
+            if bids and asks:
+                mid = (bids[0][0] + asks[0][0]) / 2
+                ref = load_last_prices().get(self.name)
+                if ref and now_ms() - ref["ts"] < PRICE_FRESH_MS and ref["price"] > 0:
+                    dev = abs(mid - ref["price"]) / ref["price"]
+                    if dev > MID_DEV_LIMIT:
+                        suspect = f"mid_dev_vs_trade_{dev * 100:.1f}pct"
+                        self.stats["suspect_snaps"] += 1
+            line = self.snapshot_line(suspect)
+            self.writer.write_line(line, now_ms())
+            self.stats["snapshots"] += 1
+            self.stats["snapshot_bytes"] += len(line)
 
     # ---------- Binance ----------
     async def run_binance(self):
@@ -211,8 +270,10 @@ class BookStream:
                     else "https://fapi.binance.com/fapi/v1/depth")
         while True:
             self.book.synced = False
+            self.resync_requested = False
             try:
                 async with ws_connect(ws_url, ping_interval=20) as ws:
+                    self._ws = ws
                     queue = asyncio.Queue()
 
                     async def receiver():
@@ -228,9 +289,15 @@ class BookStream:
                             [(p, q) for p, q in snap["bids"]],
                             [(p, q) for p, q in snap["asks"]])
                         prev_u, started = None, False
+                        self.crossed_streak = 0
                         log(f"{self.name} snapshot loaded (lastUpdateId={S}); syncing")
                         while True:
-                            ev = await queue.get()
+                            try:
+                                ev = await asyncio.wait_for(queue.get(), timeout=2)
+                            except asyncio.TimeoutError:
+                                if self.resync_requested:
+                                    raise RuntimeError("resync requested (crossed book)")
+                                continue
                             U, u = int(ev["U"]), int(ev["u"])
                             if not started:
                                 if u <= S:
@@ -268,9 +335,11 @@ class BookStream:
         inst = "BTC-USDT" if self.mk == "spot" else "BTC-USDT-SWAP"
         while True:
             self.book.synced = False
+            self.resync_requested = False
             try:
                 async with ws_connect("wss://ws.okx.com:443/ws/v5/public",
                                       ping_interval=None) as ws:
+                    self._ws = ws
                     await ws.send(json.dumps({"op": "subscribe", "args": [
                         {"channel": "books", "instId": inst}]}))
                     last_ping = time.time()
@@ -282,6 +351,8 @@ class BookStream:
                             await ws.send("ping")
                             last_ping = time.time()
                         d = json.loads(msg)
+                        if self.resync_requested:
+                            raise RuntimeError("resync requested (crossed book)")
                         if "data" not in d:
                             continue
                         item = d["data"][0]
@@ -289,6 +360,7 @@ class BookStream:
                         asks = [(x[0], x[1]) for x in item["asks"]]
                         if d.get("action") == "snapshot":
                             self.book.load_snapshot(bids, asks)
+                            self.crossed_streak = 0
                             last_seq = item.get("seqId")
                             log(f"{self.name} book snapshot loaded "
                                 f"({len(bids)}x{len(asks)} levels)")

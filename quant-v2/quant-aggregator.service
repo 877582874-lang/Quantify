@@ -1,0 +1,17 @@
+[Unit]
+Description=Quant System v2 Aggregator (trade bars / volume+dollar bars / book features / aligned as-of tables)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/quant-system
+ExecStart=/usr/bin/python3 /opt/quant-system/aggregator.py
+Restart=always
+RestartSec=10
+StandardOutput=append:/opt/quant-system/logs/aggregator.log
+StandardError=append:/opt/quant-system/logs/aggregator.log
+
+[Install]
+WantedBy=multi-user.target

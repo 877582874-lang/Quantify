@@ -70,3 +70,10 @@ checksum 字段恒为 0，不可用；非 0 时仍验 CRC32），断链即重订
 统计：logs/trades-stats.json、logs/books-stats.json（每分钟）。
 
 更正（2026-11-28 晚）：归档写入方式已改为 当前小时明文 .jsonl + 整点轮转时 gzip 压缩并校验（旧的 gzip 追加写在进程被杀时产生坏缝，已废弃）；OKX books 的 checksum 字段实测恒为 0，完整性校验以 seqId 链为准。详见 Quantify 仓库归档报告 QUANT-V2-STREAMS-20261128-001。
+
+== 清洗/聚合/对齐层（2026-11-28 晚，Cl 指令）==
+- 清洗：逐笔三道闸（时间戳量级/漂移>5min 隔离、价量<=0 隔离、对侧价偏离>2% 打 suspect 标记）；快照倒挂不落盘（连续 3 次强制重建订单簿）、中间价偏离最新成交价>1% 打 suspect；K 线加周期对齐 + 未来时间戳隔离。隔离区在 data/quarantine/。
+- 双时钟：逐笔带 recv_ms（到达时刻），K 线带 available_ms（过闸可用时刻，旧行为 NULL 不伪造）。回测只能用 >= available_ms / close_ms 的数据。
+- 聚合（quant-aggregator，derived.db）：逐笔 1s/1m/5m 时间条、Volume Bar 10 BTC、Dollar Bar 100 万 USDT、快照 1m 盘口特征；aligned_1m/5m 为资金费率+盘口 as-of 对齐（<= 收盘时刻，防未来信息）。执行口径：信号在 final bar 收盘后算、按下一根开盘成交。
+- 磁盘管家 quant-janitor（每日，只监控不删除）：体积报告 + 跌破 8 GiB 地板的天数投影报警；保留天数待 Cl 定。
+- 回补端点实测：OKX trades-history 在本机出口 404，改用 /market/trades 最新 500 条 + GAP_UNFILLED 留痕；Binance 现货 fromId 走 api.binance.com 的 historicalTrades（免 key）。
