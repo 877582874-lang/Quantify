@@ -15,11 +15,14 @@ Method, chosen to minimise error and latency:
 - The integral is EXACT for the piecewise-constant (zero-order-hold)
   price path - no sampling grid, no approximation beyond the path
   itself. Recomputed every 1 s.
-- Composite = MEDIAN of the venue TWAPs (the same robust aggregation
-  style Chainlink uses across its sources); a venue is used only if
-  its path covers >= 55 s of the window and its last trade is < 10 s
-  old. The venue spread (max-min, bps) is published alongside as a
-  live dispersion gauge.
+- Composite = the SPOT venues only (mean of the OKX/Binance spot
+  TWAPs): Chainlink's BTC/USD is a spot reference, and perpetual
+  swaps carry a funding basis (measured ~-4.5 bps) that would drag
+  the composite away from it. Swap TWAPs are still published per
+  source for comparison, plus the all-venue median as "twap_all".
+  A venue is used only if its path covers >= 55 s of the window
+  and its last trade is < 10 s old. The spot spread (bps) is
+  published alongside as a live dispersion gauge.
 - Honest limit: Chainlink's venue set/weights are theirs; this is
   the closest reproducible approximation, not their number.
 
@@ -147,7 +150,7 @@ async def publish_loop():
     while True:
         await asyncio.sleep(1)
         t = now_ms()
-        sources, usable = {}, []
+        sources, usable, usable_all = {}, [], []
         for name, v in VENUES.items():
             tw, cov = v.twap(t)
             fresh = t - v.last_recv < STALE_MS if v.last_recv else False
@@ -157,16 +160,23 @@ async def publish_loop():
                 "coverage_s": round(cov / 1000, 1),
                 "fresh": fresh}
             if tw is not None and cov >= MIN_COVERAGE_MS and fresh:
-                usable.append(tw)
+                usable_all.append(tw)
+                if name.endswith("/spot"):
+                    usable.append(tw)
+
+        def _median(xs):
+            xs = sorted(xs)
+            n = len(xs)
+            return xs[n // 2] if n % 2 else (xs[n // 2 - 1] + xs[n // 2]) / 2
+
         if len(usable) >= 2:
-            usable.sort()
-            n = len(usable)
-            comp = usable[n // 2] if n % 2 else (usable[n // 2 - 1] + usable[n // 2]) / 2
-            spread_bps = (usable[-1] - usable[0]) / comp * 10_000
+            comp = _median(usable)
+            spread_bps = (max(usable) - min(usable)) / comp * 10_000
             warming = False
         else:
             comp, spread_bps, warming = None, None, True
         payload = {"ts": t, "twap": round(comp, 2) if comp is not None else None,
+                   "twap_all": round(_median(usable_all), 2) if len(usable_all) >= 2 else None,
                    "window_s": 60, "warming_up": warming,
                    "spread_bps": round(spread_bps, 2) if spread_bps is not None else None,
                    "sources": sources}

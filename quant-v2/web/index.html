@@ -32,7 +32,7 @@
 <body>
 <div class="wrap">
   <h1>BTC / USD · TWAP 60 秒（自算 · Chainlink 同口径）</h1>
-  <div class="sub">四源逐笔成交积分法 · 中位数合成 · 每秒更新</div>
+  <div class="sub">逐笔成交积分法 · 现货双源合成（永续作对照）· 每秒更新</div>
   <div class="big" id="twap">—</div>
   <div class="meta" id="meta">连接中…</div>
   <canvas id="chart" width="680" height="120"></canvas>
@@ -41,8 +41,10 @@
     <tbody id="rows"></tbody>
   </table>
   <div class="foot">
-    口径：TWAP = 最近 60 秒内成交价的时间加权积分（逐笔事件驱动，零阶保持），
-    合成值取四源中位数；源间价差越小，数值越可信。<br>
+    口径：TWAP = 最近 60 秒内成交价的时间加权积分（逐笔事件驱动，零阶保持）。
+    Chainlink 的 BTC/USD 是现货参考价，永续合约带资金费率基差（实测约 -4.5 bps），
+    会把合成值拖低，故大字值只取两家现货 TWAP 合成，永续仅在表中作对照；
+    源间价差越小，数值越可信。<br>
     注意：Chainlink 官方流为付费凭证产品，本页是同口径自算的最近似值，
     与 Gate 实际结算值在极端行情下可能有零点几个百分点的基差。
   </div>
