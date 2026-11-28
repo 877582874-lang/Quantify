@@ -1,0 +1,18 @@
+[Unit]
+Description=Quant system v2 - trades (tick) collector, 4 WS streams, daily gz archives
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/quant-system
+Environment=PYTHONPATH=/opt/quant-system/pylib
+ExecStart=/usr/bin/python3 /opt/quant-system/trades_service.py
+Restart=always
+RestartSec=10
+StandardOutput=append:/opt/quant-system/logs/trades.log
+StandardError=append:/opt/quant-system/logs/trades.log
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,17 @@
+[Unit]
+Description=Quant system v2 - unified-caliber market data collector (OKX+Binance, spot+swap, SQLite)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/quant-system
+ExecStart=/usr/bin/python3 /opt/quant-system/collector.py
+Restart=always
+RestartSec=10
+StandardOutput=append:/opt/quant-system/logs/collector.log
+StandardError=append:/opt/quant-system/logs/collector.log
+
+[Install]
+WantedBy=multi-user.target
